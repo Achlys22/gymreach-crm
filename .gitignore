@@ -50,5 +50,13 @@ test
 prompt
 
 server.log
+
+# SQLite database (runtime data — don't commit, volume persists it)
+db/*.db
+db/*.db-journal
+
 # Skills directory
 /skills/
+
+# Temp research outputs
+/tmp/
