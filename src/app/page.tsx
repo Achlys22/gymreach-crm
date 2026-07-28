@@ -19,11 +19,16 @@ import {
   TrendingUp,
   Filter,
   X,
+  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -89,6 +94,13 @@ export default function Home() {
   // add/edit dialog
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<GymLead | null>(null);
+
+  // pagination
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  // verified-only filter (medium/high priority = verified, low = needs verification)
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -249,10 +261,26 @@ export default function Home() {
     setRegionFilter("all");
     setDisciplineFilter("all");
     setPriorityFilter("all");
+    setVerifiedOnly(false);
+    setPage(1);
   };
 
   const hasFilters =
-    q || statusFilter !== "all" || regionFilter !== "all" || disciplineFilter !== "all" || priorityFilter !== "all";
+    q || statusFilter !== "all" || regionFilter !== "all" || disciplineFilter !== "all" || priorityFilter !== "all" || verifiedOnly;
+
+  // apply verified-only filter client-side (medium/high priority = verified)
+  const displayLeads = useMemo(() => {
+    if (!verifiedOnly) return leads;
+    return leads.filter((l) => l.priority === "medium" || l.priority === "high");
+  }, [leads, verifiedOnly]);
+
+  // pagination
+  const totalPages = Math.max(1, Math.ceil(displayLeads.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedLeads = displayLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // reset page when filters change
+  useEffect(() => { setPage(1); }, [q, statusFilter, regionFilter, disciplineFilter, priorityFilter, verifiedOnly]);
 
   // response rate
   const responseRate = useMemo(() => {
@@ -315,19 +343,27 @@ export default function Home() {
             icon={<Users className="size-4" />}
             label="Total leads"
             value={stats?.total ?? 0}
+            sub={`${(stats?.byPriority.medium ?? 0) + (stats?.byPriority.high ?? 0)} verified`}
             accent="from-slate-500 to-slate-700"
+          />
+          <StatCard
+            icon={<BadgeCheck className="size-4" />}
+            label="Verified"
+            value={(stats?.byPriority.medium ?? 0) + (stats?.byPriority.high ?? 0)}
+            sub="from web search"
+            accent="from-emerald-500 to-green-600"
+          />
+          <StatCard
+            icon={<AlertCircle className="size-4" />}
+            label="To verify"
+            value={stats?.byPriority.low ?? 0}
+            sub="LLM-suggested"
+            accent="from-amber-500 to-orange-600"
           />
           <StatCard
             icon={<MessageSquare className="size-4" />}
             label="Contacted"
             value={stats?.byStatus.contacted ?? 0}
-            sub={`${stats?.byStatus.new ?? 0} still new`}
-            accent="from-amber-500 to-orange-600"
-          />
-          <StatCard
-            icon={<TrendingUp className="size-4" />}
-            label="Replied / Interested"
-            value={(stats?.byStatus.replied ?? 0) + (stats?.byStatus.interested ?? 0)}
             sub={`${responseRate}% response rate`}
             accent="from-sky-500 to-cyan-600"
           />
@@ -336,13 +372,6 @@ export default function Home() {
             label="Won"
             value={stats?.byStatus.won ?? 0}
             sub={`${winRate}% win rate`}
-            accent="from-emerald-500 to-green-600"
-          />
-          <StatCard
-            icon={<Filter className="size-4" />}
-            label="Showing"
-            value={leads.length}
-            sub={loading ? "loading…" : "filtered"}
             accent="from-violet-500 to-fuchsia-600"
           />
         </div>
@@ -417,20 +446,27 @@ export default function Home() {
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Checkbox
+                    checked={verifiedOnly}
+                    onCheckedChange={(v) => setVerifiedOnly(v === true)}
+                  />
+                  <span className="text-xs font-medium">Verified only</span>
+                </label>
                 {hasFilters ? (
                   <>
-                    <Badge variant="secondary">{leads.length} match</Badge>
+                    <Badge variant="secondary">{displayLeads.length} match</Badge>
                     <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs">
                       <X className="size-3" /> Clear filters
                     </Button>
                   </>
                 ) : (
-                  <span>No filters applied — showing all leads</span>
+                  <span className="hidden sm:inline">No filters applied — showing all leads</span>
                 )}
               </div>
               <Button variant="outline" size="sm" onClick={exportCsv} disabled={leads.length === 0}>
                 <Download className="size-4" />
-                Export CSV
+                Export CSV ({leads.length})
               </Button>
             </div>
           </div>
@@ -442,35 +478,72 @@ export default function Home() {
             <div className="flex items-center justify-center py-20">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
-          ) : leads.length === 0 ? (
+          ) : displayLeads.length === 0 ? (
             <EmptyState onSeed={handleSeed} onAdd={() => { setEditing(null); setAddOpen(true); }} />
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50/80 dark:bg-slate-900/80">
-                    <TableHead className="min-w-[220px]">Gym</TableHead>
-                    <TableHead className="min-w-[140px]">Location</TableHead>
-                    <TableHead className="min-w-[180px]">Disciplines</TableHead>
-                    <TableHead className="min-w-[120px]">Priority</TableHead>
-                    <TableHead className="min-w-[150px]">Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leads.map((lead) => (
-                    <LeadRow
-                      key={lead.id}
-                      lead={lead}
-                      onStatusChange={(s) => updateStatus(lead.id, s)}
-                      onPriorityChange={(p) => updatePriority(lead.id, p)}
-                      onEdit={() => { setEditing(lead); setAddOpen(true); }}
-                      onDelete={() => deleteLead(lead.id, lead.name)}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50/80 dark:bg-slate-900/80">
+                      <TableHead className="min-w-[220px]">Gym</TableHead>
+                      <TableHead className="min-w-[140px]">Location</TableHead>
+                      <TableHead className="min-w-[180px]">Disciplines</TableHead>
+                      <TableHead className="min-w-[120px]">Priority</TableHead>
+                      <TableHead className="min-w-[150px]">Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedLeads.map((lead) => (
+                      <LeadRow
+                        key={lead.id}
+                        lead={lead}
+                        onStatusChange={(s) => updateStatus(lead.id, s)}
+                        onPriorityChange={(p) => updatePriority(lead.id, p)}
+                        onEdit={() => { setEditing(lead); setAddOpen(true); }}
+                        onDelete={() => deleteLead(lead.id, lead.name)}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {/* Pagination */}
+              <div className="flex items-center justify-between px-4 py-3 border-t bg-slate-50/50 dark:bg-slate-900/50 flex-wrap gap-2">
+                <div className="text-xs text-muted-foreground">
+                  Showing <span className="font-medium text-foreground">{(currentPage - 1) * PAGE_SIZE + 1}</span>
+                  {"–"}
+                  <span className="font-medium text-foreground">{Math.min(currentPage * PAGE_SIZE, displayLeads.length)}</span>
+                  {" of "}
+                  <span className="font-medium text-foreground">{displayLeads.length}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="h-8"
+                  >
+                    <ChevronLeft className="size-4" />
+                    Prev
+                  </Button>
+                  <span className="text-xs text-muted-foreground px-2">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="h-8"
+                  >
+                    Next
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </Card>
       </main>
@@ -479,7 +552,7 @@ export default function Home() {
       <footer className="border-t bg-white dark:bg-slate-950 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
           <p>
-            GymReach CRM · {stats?.total ?? 0} leads tracked · Handles verified via public web search
+            GymReach CRM · {stats?.total ?? 0} leads tracked · {(stats?.byPriority.medium ?? 0) + (stats?.byPriority.high ?? 0)} verified · {stats?.byPriority.low ?? 0} to verify
           </p>
           <p className="flex items-center gap-1.5">
             <Instagram className="size-3.5" />
@@ -557,7 +630,12 @@ function LeadRow({
             <Instagram className="size-4" />
           </div>
           <div className="min-w-0">
-            <div className="font-medium text-sm truncate">{lead.name}</div>
+            <div className="font-medium text-sm truncate flex items-center gap-1.5">
+              {lead.name}
+              {(lead.priority === "medium" || lead.priority === "high") && (
+                <BadgeCheck className="size-3.5 text-emerald-500 shrink-0" />
+              )}
+            </div>
             <a
               href={`https://instagram.com/${lead.instagram}`}
               target="_blank"
