@@ -1,0 +1,30 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model GymLead {
+  id          String    @id @default(cuid())
+  name        String
+  instagram   String    @unique
+  city        String?
+  region      String?
+  disciplines String    // comma-separated: MMA,Muay Thai,Boxing
+  status      String    @default("new") // new, contacted, replied, interested, won, lost
+  priority    String    @default("medium") // low, medium, high
+  notes       String?
+  followUpAt  DateTime?
+  contactedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([region])
+}
