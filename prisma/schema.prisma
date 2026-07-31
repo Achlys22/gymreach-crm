@@ -20,6 +20,7 @@ model GymLead {
   status      String    @default("new") // new, contacted, replied, interested, won, lost
   priority    String    @default("medium") // low, medium, high
   notes       String?
+  message     String?   // LLM-generated personalized cold DM
   followUpAt  DateTime?
   contactedAt DateTime?
   createdAt   DateTime  @default(now())

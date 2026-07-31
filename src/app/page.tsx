@@ -23,6 +23,10 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
+  MessageCircle,
+  Copy,
+  Check,
+  Wand2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -94,6 +98,13 @@ export default function Home() {
   // add/edit dialog
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<GymLead | null>(null);
+
+  // message dialog
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [messageLead, setMessageLead] = useState<GymLead | null>(null);
+
+  // bulk generation
+  const [bulkGenerating, setBulkGenerating] = useState(false);
 
   // pagination
   const [page, setPage] = useState(1);
@@ -215,6 +226,33 @@ export default function Home() {
     }
   };
 
+  // Bulk-generate messages for leads that don't have one yet
+  const bulkGenerate = async () => {
+    setBulkGenerating(true);
+    try {
+      const res = await fetch("/api/leads/generate-messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast({
+        title: "Messages generated",
+        description: `${data.generated} created • ${data.failed} failed. Refreshing…`,
+      });
+      fetchLeads();
+    } catch (e) {
+      toast({
+        title: "Generation failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkGenerating(false);
+    }
+  };
+
   const exportCsv = () => {
     const headers = [
       "name",
@@ -327,6 +365,20 @@ export default function Home() {
                 <Sparkles className="size-4" />
               )}
               Load starter leads
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={bulkGenerate}
+              disabled={bulkGenerating}
+              title="Generate personalized DMs for leads missing one (max 50 per batch)"
+            >
+              {bulkGenerating ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Wand2 className="size-4" />
+              )}
+              <span className="hidden sm:inline">Generate DMs</span>
             </Button>
             <Button size="sm" onClick={() => { setEditing(null); setAddOpen(true); }}>
               <Plus className="size-4" />
@@ -503,6 +555,7 @@ export default function Home() {
                         onPriorityChange={(p) => updatePriority(lead.id, p)}
                         onEdit={() => { setEditing(lead); setAddOpen(true); }}
                         onDelete={() => deleteLead(lead.id, lead.name)}
+                        onMessage={() => { setMessageLead(lead); setMessageOpen(true); }}
                       />
                     ))}
                   </TableBody>
@@ -571,6 +624,16 @@ export default function Home() {
           fetchStats();
         }}
       />
+
+      {/* Message dialog */}
+      <MessageDialog
+        open={messageOpen}
+        onOpenChange={setMessageOpen}
+        lead={messageLead}
+        onUpdated={(updated) => {
+          setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        }}
+      />
     </div>
   );
 }
@@ -611,12 +674,14 @@ function LeadRow({
   onPriorityChange,
   onEdit,
   onDelete,
+  onMessage,
 }: {
   lead: GymLead;
   onStatusChange: (s: string) => void;
   onPriorityChange: (p: string) => void;
   onEdit: () => void;
   onDelete: () => void;
+  onMessage: () => void;
 }) {
   const disciplines = lead.disciplines.split(",").map((d) => d.trim()).filter(Boolean);
   const statusBadge = STATUS_META[lead.status as LeadStatus] ?? STATUS_META.new;
@@ -702,6 +767,25 @@ function LeadRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={onMessage}
+            title={lead.message ? "View message" : "Generate message"}
+          >
+            {lead.message ? (
+              <>
+                <MessageCircle className="size-3.5 text-emerald-500" />
+                <span className="hidden sm:inline text-emerald-600">Ready</span>
+              </>
+            ) : (
+              <>
+                <Wand2 className="size-3.5" />
+                <span className="hidden sm:inline">DM</span>
+              </>
+            )}
+          </Button>
           <Button variant="ghost" size="icon" className="size-8" onClick={onEdit} title="Edit">
             <Pencil className="size-3.5" />
           </Button>
@@ -989,6 +1073,222 @@ function LeadDialog({
             {editing ? "Save changes" : "Add lead"}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------- Message dialog (1-click DM workflow) ---------- */
+function MessageDialog({
+  open,
+  onOpenChange,
+  lead,
+  onUpdated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  lead: GymLead | null;
+  onUpdated: (lead: GymLead) => void;
+}) {
+  const { toast } = useToast();
+  const [message, setMessage] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (open && lead) {
+      setMessage(lead.message || "");
+      setCopied(false);
+    }
+  }, [open, lead]);
+
+  const generate = async () => {
+    if (!lead) return;
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/message`, { method: "POST" });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setMessage(data.message);
+      if (data.lead) onUpdated(data.lead);
+      toast({ title: "Message generated", description: "Review, edit, then copy & open Instagram." });
+    } catch (e) {
+      toast({
+        title: "Generation failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyAndOpen = async () => {
+    if (!lead || !message) return;
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopied(true);
+      window.open(`https://instagram.com/${lead.instagram}`, "_blank");
+      toast({
+        title: "Copied! Instagram opened",
+        description: "Click Message on their profile and paste (Ctrl+V / Cmd+V).",
+      });
+      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = message;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      window.open(`https://instagram.com/${lead.instagram}`, "_blank");
+      setCopied(true);
+      toast({ title: "Copied! Instagram opened", description: "Paste the message in their DM." });
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!lead) return;
+    try {
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: lead.notes, message }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (data.lead) onUpdated(data.lead);
+      toast({ title: "Message saved" });
+    } catch (e) {
+      toast({
+        title: "Save failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (!lead) return null;
+  const charCount = message.length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Instagram className="size-4 text-rose-500" />
+            DM — {lead.name}
+          </DialogTitle>
+          <DialogDescription>
+            <a
+              href={`https://instagram.com/${lead.instagram}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-rose-600 inline-flex items-center gap-1"
+            >
+              @{lead.instagram}
+              <ExternalLink className="size-3" />
+            </a>
+            {" · "}
+            {lead.city ?? lead.region ?? "UK"}
+            {" · "}
+            {lead.disciplines || "MMA"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3 py-2">
+          {message ? (
+            <>
+              <div className="relative">
+                <Textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={8}
+                  className="resize-none pr-16 text-sm leading-relaxed"
+                  placeholder="Your DM message…"
+                />
+                <span
+                  className={`absolute bottom-2 right-3 text-[10px] ${
+                    charCount > 1000 ? "text-rose-500 font-medium" : "text-muted-foreground"
+                  }`}
+                >
+                  {charCount}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={generate}
+                  disabled={generating}
+                  className="text-xs"
+                >
+                  {generating ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Wand2 className="size-3.5" />
+                  )}
+                  Regenerate
+                </Button>
+                <Button variant="ghost" size="sm" onClick={saveEdit} className="text-xs">
+                  <Pencil className="size-3.5" />
+                  Save edits
+                </Button>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={copyAndOpen}
+                  className="flex-1 bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="size-4" />
+                      Copied! Open IG →
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-4" />
+                      Copy &amp; Open Instagram
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground text-center">
+                Message copied to clipboard. On their IG profile, click &ldquo;Message&rdquo; and paste.
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center py-8 gap-4">
+              <div className="size-12 rounded-xl bg-gradient-to-br from-rose-500/15 to-orange-500/15 flex items-center justify-center">
+                <MessageCircle className="size-6 text-rose-500" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">No message yet</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  Generate a personalized cold DM using AI. It reads the gym&apos;s name, city, and discipline to write a unique opening line — no generic &ldquo;I came across your gym&rdquo;.
+                </p>
+              </div>
+              <Button onClick={generate} disabled={generating} className="bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white">
+                {generating ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Writing your DM…
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="size-4" />
+                    Generate personalized DM
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
