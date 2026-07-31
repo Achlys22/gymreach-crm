@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { generateMessage } from "../[id]/message/route";
+import { generateMessage } from "@/lib/message-template";
+
+interface LeadInfo {
+  name: string;
+  instagram: string;
+  city: string | null;
+  region: string | null;
+  disciplines: string;
+  notes: string | null;
+}
 
 // Bulk-generate messages for leads that don't have one yet.
 // Body: { ids?: string[] } — if omitted, generates for all leads missing a message
-// (limited to 50 per call to respect rate limits)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const ids: string[] | undefined = body.ids;
 
-    const LIMIT = 50;
+    const LIMIT = 500; // template-based = instant, no rate limit
 
     let leads;
     if (ids && Array.isArray(ids) && ids.length > 0) {
@@ -35,20 +43,32 @@ export async function POST(req: NextRequest) {
 
     let generated = 0;
     let failed = 0;
-    const errors: string[] = [];
 
-    // Generate sequentially to respect rate limits (parallel = 429s)
+    // Template-based = instant, no rate limits, no API calls
     for (const lead of leads) {
-      const msg = await generateMessage(lead);
-      if (msg) {
-        await db.gymLead.update({
-          where: { id: lead.id },
-          data: { message: msg },
-        });
-        generated++;
-      } else {
+      try {
+        const leadInfo: LeadInfo = {
+          name: lead.name,
+          instagram: lead.instagram,
+          city: lead.city,
+          region: lead.region,
+          disciplines: lead.disciplines,
+          notes: lead.notes,
+        };
+
+        const message = generateMessage(leadInfo);
+
+        if (message) {
+          await db.gymLead.update({
+            where: { id: lead.id },
+            data: { message },
+          });
+          generated++;
+        } else {
+          failed++;
+        }
+      } catch {
         failed++;
-        errors.push(lead.instagram);
       }
     }
 
@@ -56,7 +76,6 @@ export async function POST(req: NextRequest) {
       generated,
       failed,
       total: leads.length,
-      errors: errors.slice(0, 5),
     });
   } catch (e) {
     console.error("POST /api/leads/generate-messages error", e);
