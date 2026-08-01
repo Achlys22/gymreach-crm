@@ -86,17 +86,23 @@ function buildSolution(seed: number): string {
   return solutions[seed % solutions.length];
 }
 
-// LINE 4 — Close. Offer a demo (reciprocity).
-function buildClose(seed: number): string {
+// LINE 4 — Close. Offer PROOF OF THE GAP (not a demo).
+// Gym pitch is for future work (Google Ads), so we offer a search
+// screenshot showing they don't rank — not a "demo" of something
+// that doesn't exist yet.
+function buildClose(lead: LeadInfo, seed: number): string {
+  const disc = primaryDiscipline(lead);
+  const city = lead.city || "your area";
+
   const closes: string[] = [
-    `Want me to send over a 2-min demo?`,
-    `I've got a 2-min demo. Want me to send it over?`,
-    `Want me to send a quick demo showing what I'd run for you?`,
-    `I made a 2-min demo. Want me to send it over?`,
-    `Want me to send a quick demo?`,
-    `Got a 2-min demo ready. Want me to send it over?`,
-    `Want me to send over a demo?`,
-    `I've got a demo showing what ads I'd run. Want me to send it?`,
+    `Want me to send you what shows up when someone searches "${disc} gym in ${city}" right now?`,
+    `Want me to screenshot what comes up when I Google "${disc} gym ${city}"? Eye-opening.`,
+    `Want me to send what shows up for "${disc} gym ${city}" on Google right now?`,
+    `Want me to show you what comes up when someone searches "${disc} gym in ${city}"?`,
+    `Want me to send a screenshot of what ranks for "${disc} gym ${city}" right now?`,
+    `Want me to show you what people actually see when they search "${disc} gym ${city}"?`,
+    `Want me to send what shows up for "${disc} gym in ${city}" on Google?`,
+    `Want me to screenshot what's ranking for "${disc} gym ${city}" right now?`,
   ];
   return closes[seed % closes.length];
 }
@@ -133,7 +139,7 @@ export function generateMessage(lead: LeadInfo, variant?: number): string {
   const seed = hashString(lead.instagram + (lead.name || "")) + (variant ?? 0);
   const pain = buildPain(lead, Math.floor(seed / 7));
   const solution = buildSolution(Math.floor(seed / 13));
-  const close = buildClose(Math.floor(seed / 19));
+  const close = buildClose(lead, Math.floor(seed / 19));
 
   const message = `${hook}\n\n${pain}\n\n${solution}\n\n${close}`;
   return validate(message);
