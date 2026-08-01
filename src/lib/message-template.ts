@@ -36,31 +36,30 @@ function primaryDiscipline(lead: LeadInfo): string {
   return d[0];
 }
 
-// LINE 1 — Hook. Three tiers:
+// LINE 1 — Hook. Three tiers (all use seed so regenerate produces variety):
 //   1. Manual detail (best — personalized)
 //   2. Auto-extracted detail from notes (good — specific)
-//   3. Honest volume opener (decent — references real data, no fake personalization)
-function buildHook(lead: LeadInfo): string {
+//   3. Honest volume opener (decent — references real data)
+function buildHook(lead: LeadInfo, seed: number): string {
   // Priority 1: manually-set detail
   if (lead.detail && lead.detail.trim().length > 2) {
-    return buildHookWithDetail(lead.name, lead.detail.trim(), "gym");
+    return buildHookWithDetail(lead.name, lead.detail.trim(), seed);
   }
 
   // Priority 2: auto-extracted detail from notes
   const extracted = extractDetail(lead.notes, lead.name);
   if (extracted) {
-    return buildHookWithDetail(lead.name, extracted.detail, "gym");
+    return buildHookWithDetail(lead.name, extracted.detail, seed);
   }
 
-  // Priority 3: honest volume opener — references real data (city + discipline)
-  // Does NOT pretend to have looked at their posts. Honest and specific enough.
-  return buildVolumeHook(lead);
+  // Priority 3: honest volume opener
+  return buildVolumeHook(lead, seed);
 }
 
 // Honest volume opener — uses real data (discipline + city) without
 // pretending to have researched their Instagram. Better than filler
 // like "standout spot" because it's truthful.
-function buildVolumeHook(lead: LeadInfo, seed: number = 0): string {
+function buildVolumeHook(lead: LeadInfo, seed: number): string {
   const disc = primaryDiscipline(lead);
   const city = lead.city || "the UK";
   const name = lead.name;
@@ -154,7 +153,7 @@ function hashString(s: string): number {
 
 export function generateMessage(lead: LeadInfo, variant?: number): string {
   const seed = hashString(lead.instagram + (lead.name || "")) + (variant ?? 0);
-  const hook = buildHook(lead);
+  const hook = buildHook(lead, seed);
   const pain = buildPain(lead, Math.floor(seed / 7));
   const solution = buildSolution(Math.floor(seed / 13));
   const close = buildClose(lead, Math.floor(seed / 19));

@@ -1285,22 +1285,26 @@ function MessageDialog({
 }) {
   const { toast } = useToast();
   const [message, setMessage] = useState("");
+  const [detail, setDetail] = useState("");
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (open && lead) {
       setMessage(lead.message || "");
+      setDetail(lead.detail || "");
       setCopied(false);
     }
   }, [open, lead]);
 
-  const generate = async () => {
+  const generate = async (regenerate = false) => {
     if (!lead) return;
     setGenerating(true);
     try {
       const res = await fetch(`/api/restaurants/${lead.id}/message`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detail: detail || null, regenerate }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -1359,7 +1363,7 @@ function MessageDialog({
       const res = await fetch(`/api/restaurants/${lead.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: lead.notes, message }),
+        body: JSON.stringify({ notes: lead.notes, detail, message }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -1410,6 +1414,23 @@ function MessageDialog({
         </DialogHeader>
 
         <div className="grid gap-3 py-2">
+          {/* Detail input — for Line 1 personalization */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium flex items-center gap-1.5">
+              <Sparkles className="size-3 text-amber-500" />
+              Specific detail for Line 1
+            </Label>
+            <Input
+              value={detail}
+              onChange={(e) => setDetail(e.target.value)}
+              placeholder="e.g. the paella, their tasting menu, the brunch"
+              className="text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Check their Instagram for 60-90 seconds. Find ONE specific thing. Leave blank to use category + city.
+            </p>
+          </div>
+
           {message ? (
             <>
               <div className="relative">
@@ -1435,7 +1456,7 @@ function MessageDialog({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={generate}
+                  onClick={() => generate(true)}
                   disabled={generating}
                   className="text-xs"
                 >

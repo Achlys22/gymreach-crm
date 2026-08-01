@@ -1180,14 +1180,14 @@ function MessageDialog({
     }
   }, [open, lead]);
 
-  const generate = async () => {
+  const generate = async (regenerate = false) => {
     if (!lead) return;
     setGenerating(true);
     try {
       const res = await fetch(`/api/leads/${lead.id}/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ detail: detail || null }),
+        body: JSON.stringify({ detail: detail || null, regenerate }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -1316,7 +1316,7 @@ function MessageDialog({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={generate}
+                  onClick={() => generate(true)}
                   disabled={generating}
                   className="text-xs"
                 >

@@ -183,8 +183,11 @@ export function extractDetail(notes: string | null, name: string): ExtractedDeta
  * The detail might already include "their" (e.g. "their kids BJJ program")
  * or be a standalone noun phrase (e.g. "the paella", "2 boxing rings").
  * We normalize to avoid "their their..." duplication.
+ *
+ * The seed parameter controls which phrasing variant is used, so
+ * regenerate produces a different hook.
  */
-export function buildHookWithDetail(name: string, detail: string, type: "gym" | "restaurant"): string {
+export function buildHookWithDetail(name: string, detail: string, seed: number = 0): string {
   // Normalize: strip leading "their" / "the" / "a" if present (we add our own)
   let d = detail.trim().toLowerCase();
   d = d.replace(/^(their|the|a|an)\s+/i, "");
@@ -196,11 +199,10 @@ export function buildHookWithDetail(name: string, detail: string, type: "gym" | 
     `${name} came up. Their ${d} looks legit.`,
     `Saw ${name}. The ${d} is impressive.`,
     `Came across ${name}. Their ${d} stood out.`,
+    `Stumbled on ${name}. The ${d} caught my eye.`,
+    `Noticed ${name}'s ${d}. Proper setup.`,
   ];
 
-  // Deterministic pick based on name for consistency
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  const idx = Math.abs(h) % variants.length;
+  const idx = Math.abs(seed) % variants.length;
   return variants[idx];
 }

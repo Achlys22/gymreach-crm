@@ -24,25 +24,25 @@ export const SKIP_MESSAGE = "SKIP — needs manual detail";
 //   1. Manual detail (best)
 //   2. Auto-extracted detail from notes (good)
 //   3. Honest volume opener (decent — references city + cuisine)
-function buildHook(r: RestaurantInfo): string {
+function buildHook(r: RestaurantInfo, seed: number): string {
   // Priority 1: manually-set detail
   if (r.detail && r.detail.trim().length > 2) {
-    return buildHookWithDetail(r.name, r.detail.trim(), "restaurant");
+    return buildHookWithDetail(r.name, r.detail.trim(), seed);
   }
 
   // Priority 2: auto-extracted detail from notes
   const extracted = extractDetail(r.notes, r.name);
   if (extracted) {
-    return buildHookWithDetail(r.name, extracted.detail, "restaurant");
+    return buildHookWithDetail(r.name, extracted.detail, seed);
   }
 
   // Priority 3: honest volume opener
-  return buildVolumeHook(r);
+  return buildVolumeHook(r, seed);
 }
 
 // Honest volume opener — references real data (cuisine + city) without
 // pretending to have researched their Instagram.
-function buildVolumeHook(r: RestaurantInfo): string {
+function buildVolumeHook(r: RestaurantInfo, seed: number): string {
   const cuisine = r.cuisine || "restaurant";
   const city = r.city || "the UK";
   const name = r.name;
@@ -55,7 +55,7 @@ function buildVolumeHook(r: RestaurantInfo): string {
     `Reaching out to ${cuisine} restaurants in ${city}. ${name} came up.`,
     `Saw ${name} in ${city}. ${cuisine} spot — quick question.`,
   ];
-  const h = hashString((r.instagram || r.name) + name);
+  const h = hashString((r.instagram || r.name) + name + seed);
   return hooks[Math.abs(h) % hooks.length];
 }
 
@@ -127,7 +127,7 @@ function hashString(s: string): number {
 
 export function generateRestaurantMessage(r: RestaurantInfo, variant?: number): string {
   const seed = hashString((r.instagram || r.name) + r.name) + (variant ?? 0);
-  const hook = buildHook(r);
+  const hook = buildHook(r, seed);
   const pain = buildPain(Math.floor(seed / 7));
   const solution = buildSolution(Math.floor(seed / 13));
   const close = buildClose(Math.floor(seed / 19));
