@@ -58,7 +58,15 @@ export async function GET(req: NextRequest) {
           )
         : leads;
 
-    return NextResponse.json({ leads: filtered });
+    return NextResponse.json({
+      leads: filtered.map((l) => ({
+        ...l,
+        followUpAt: l.followUpAt?.toISOString() ?? null,
+        contactedAt: l.contactedAt?.toISOString() ?? null,
+        createdAt: l.createdAt.toISOString(),
+        updatedAt: l.updatedAt.toISOString(),
+      })),
+    });
   } catch (e) {
     console.error("GET /api/leads error", e);
     return NextResponse.json({ error: "Failed to fetch leads" }, { status: 500 });

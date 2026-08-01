@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generateRestaurantMessage, generateRestaurantMessageVariant, SKIP_MESSAGE } from "@/lib/restaurant-message-template";
+import type { RestaurantLead } from "@/lib/restaurant-types";
 
 interface RestaurantInfo {
   name: string;
@@ -11,6 +12,51 @@ interface RestaurantInfo {
   reservationSystem: string | null;
   notes: string | null;
   detail: string | null;
+}
+
+// Convert a Prisma RestaurantLead to a plain serializable object
+function serializeLead(l: {
+  id: string;
+  name: string;
+  instagram: string | null;
+  phone: string | null;
+  city: string | null;
+  region: string | null;
+  cuisine: string | null;
+  hasWebsite: boolean;
+  reservationSystem: string | null;
+  botDeployed: boolean;
+  status: string;
+  priority: string;
+  notes: string | null;
+  detail: string | null;
+  message: string | null;
+  followUpAt: Date | null;
+  contactedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): RestaurantLead {
+  return {
+    id: l.id,
+    name: l.name,
+    instagram: l.instagram,
+    phone: l.phone,
+    city: l.city,
+    region: l.region,
+    cuisine: l.cuisine,
+    hasWebsite: l.hasWebsite,
+    reservationSystem: l.reservationSystem,
+    botDeployed: l.botDeployed,
+    status: l.status,
+    priority: l.priority,
+    notes: l.notes,
+    detail: l.detail,
+    message: l.message,
+    followUpAt: l.followUpAt?.toISOString() ?? null,
+    contactedAt: l.contactedAt?.toISOString() ?? null,
+    createdAt: l.createdAt.toISOString(),
+    updatedAt: l.updatedAt.toISOString(),
+  };
 }
 
 export async function POST(
@@ -27,13 +73,13 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}));
 
-    // If a manual detail is provided, save it
+    let currentDetail = lead.detail;
     if (body?.detail !== undefined) {
       await db.restaurantLead.update({
         where: { id },
         data: { detail: body.detail || null },
       });
-      lead.detail = body.detail || null;
+      currentDetail = body.detail || null;
     }
 
     const info: RestaurantInfo = {
@@ -44,7 +90,7 @@ export async function POST(
       cuisine: lead.cuisine,
       reservationSystem: lead.reservationSystem,
       notes: lead.notes,
-      detail: lead.detail,
+      detail: currentDetail,
     };
 
     const isRegenerate = body?.regenerate === true;
@@ -56,15 +102,13 @@ export async function POST(
       return NextResponse.json({ error: "Failed to generate message." }, { status: 500 });
     }
 
-    const updated = message === SKIP_MESSAGE
-      ? lead
-      : await db.restaurantLead.update({
-          where: { id },
-          data: { message },
-        });
+    const updated = await db.restaurantLead.update({
+      where: { id },
+      data: { message },
+    });
 
     return NextResponse.json({
-      lead: updated,
+      lead: serializeLead(updated),
       message,
       skipped: message === SKIP_MESSAGE,
     });

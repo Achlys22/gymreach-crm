@@ -9,6 +9,7 @@ interface LeadInfo {
   region: string | null;
   disciplines: string;
   notes: string | null;
+  detail: string | null;
 }
 
 // Bulk-generate messages for leads that don't have one yet.
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
           region: lead.region,
           disciplines: lead.disciplines,
           notes: lead.notes,
+          detail: lead.detail,
         };
 
         const message = generateMessage(leadInfo);

@@ -11,6 +11,7 @@ interface RestaurantInfo {
   cuisine: string | null;
   reservationSystem: string | null;
   notes: string | null;
+  detail: string | null;
 }
 
 export async function POST(_req: NextRequest) {
@@ -39,6 +40,7 @@ export async function POST(_req: NextRequest) {
           cuisine: lead.cuisine,
           reservationSystem: lead.reservationSystem,
           notes: lead.notes,
+          detail: lead.detail,
         };
         const message = generateRestaurantMessage(info);
         if (message) {

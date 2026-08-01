@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generateMessage, generateMessageVariant, SKIP_MESSAGE } from "@/lib/message-template";
+import type { GymLead } from "@/lib/types";
 
 interface LeadInfo {
   name: string;
@@ -10,6 +11,44 @@ interface LeadInfo {
   disciplines: string;
   notes: string | null;
   detail: string | null;
+}
+
+// Convert a Prisma GymLead to a plain serializable object
+// (prevents "cyclic object value" errors from Prisma internals)
+function serializeLead(l: {
+  id: string;
+  name: string;
+  instagram: string;
+  city: string | null;
+  region: string | null;
+  disciplines: string;
+  status: string;
+  priority: string;
+  notes: string | null;
+  detail: string | null;
+  message: string | null;
+  followUpAt: Date | null;
+  contactedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): GymLead {
+  return {
+    id: l.id,
+    name: l.name,
+    instagram: l.instagram,
+    city: l.city,
+    region: l.region,
+    disciplines: l.disciplines,
+    status: l.status,
+    priority: l.priority,
+    notes: l.notes,
+    detail: l.detail,
+    message: l.message,
+    followUpAt: l.followUpAt?.toISOString() ?? null,
+    contactedAt: l.contactedAt?.toISOString() ?? null,
+    createdAt: l.createdAt.toISOString(),
+    updatedAt: l.updatedAt.toISOString(),
+  };
 }
 
 export async function POST(
@@ -26,13 +65,14 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}));
 
-    // If a manual detail is provided in the request, save it to the DB
+    // If a manual detail is provided, save it
+    let currentDetail = lead.detail;
     if (body?.detail !== undefined) {
       await db.gymLead.update({
         where: { id },
         data: { detail: body.detail || null },
       });
-      lead.detail = body.detail || null;
+      currentDetail = body.detail || null;
     }
 
     const leadInfo: LeadInfo = {
@@ -42,7 +82,7 @@ export async function POST(
       region: lead.region,
       disciplines: lead.disciplines,
       notes: lead.notes,
-      detail: lead.detail,
+      detail: currentDetail,
     };
 
     const isRegenerate = body?.regenerate === true;
@@ -57,16 +97,14 @@ export async function POST(
       );
     }
 
-    // Only save non-SKIP messages to the DB
-    const updated = message === SKIP_MESSAGE
-      ? lead
-      : await db.gymLead.update({
-          where: { id },
-          data: { message },
-        });
+    // Save the message and fetch the updated lead as a plain object
+    const updated = await db.gymLead.update({
+      where: { id },
+      data: { message },
+    });
 
     return NextResponse.json({
-      lead: updated,
+      lead: serializeLead(updated),
       message,
       skipped: message === SKIP_MESSAGE,
     });
