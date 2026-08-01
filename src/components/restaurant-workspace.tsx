@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   Plus,
@@ -12,12 +12,11 @@ import {
   Pencil,
   Trash2,
   ExternalLink,
-  Target,
+  UtensilsCrossed,
   Users,
   MessageSquare,
   Trophy,
-  TrendingUp,
-  Filter,
+  Send,
   X,
   BadgeCheck,
   ChevronLeft,
@@ -27,7 +26,9 @@ import {
   Copy,
   Check,
   Wand2,
-  UtensilsCrossed,
+  Bot,
+  Phone,
+  Globe,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -70,27 +71,33 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
-  LEAD_STATUSES,
+  RESTAURANT_STATUSES,
+  RESTAURANT_STATUS_META,
+  CUISINES,
+  RESERVATION_SYSTEMS,
+  type RestaurantStatus,
+} from "@/lib/restaurant-constants";
+import type { RestaurantLead, RestaurantStats } from "@/lib/restaurant-types";
+import {
   REGIONS,
-  DISCIPLINES,
   LEAD_PRIORITIES,
-  STATUS_META,
   PRIORITY_META,
-  type LeadStatus,
   type LeadPriority,
 } from "@/lib/constants";
-import type { GymLead, LeadStats } from "@/lib/types";
-import RestaurantWorkspace from "@/components/restaurant-workspace";
 
-export default function Home() {
+export interface RestaurantWorkspaceProps {
+  bulkGenerating: boolean;
+  onBulkGenerate: () => void;
+}
+
+export default function RestaurantWorkspace({
+  bulkGenerating,
+  onBulkGenerate,
+}: RestaurantWorkspaceProps) {
   const { toast } = useToast();
 
-  // workspace switcher
-  const [workspace, setWorkspace] = useState<"gym" | "restaurant">("gym");
-  const [restaurantBulkGen, setRestaurantBulkGen] = useState(false);
-
-  const [leads, setLeads] = useState<GymLead[]>([]);
-  const [stats, setStats] = useState<LeadStats | null>(null);
+  const [leads, setLeads] = useState<RestaurantLead[]>([]);
+  const [stats, setStats] = useState<RestaurantStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
@@ -98,19 +105,16 @@ export default function Home() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
-  const [disciplineFilter, setDisciplineFilter] = useState("all");
+  const [cuisineFilter, setCuisineFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
 
   // add/edit dialog
   const [addOpen, setAddOpen] = useState(false);
-  const [editing, setEditing] = useState<GymLead | null>(null);
+  const [editing, setEditing] = useState<RestaurantLead | null>(null);
 
   // message dialog
   const [messageOpen, setMessageOpen] = useState(false);
-  const [messageLead, setMessageLead] = useState<GymLead | null>(null);
-
-  // bulk generation
-  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [messageLead, setMessageLead] = useState<RestaurantLead | null>(null);
 
   // pagination
   const [page, setPage] = useState(1);
@@ -119,6 +123,9 @@ export default function Home() {
   // verified-only filter (medium/high priority = verified, low = needs verification)
   const [verifiedOnly, setVerifiedOnly] = useState(false);
 
+  // track bulk generate transitions so we can refresh after the parent finishes
+  const prevBulk = useRef(bulkGenerating);
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
@@ -126,27 +133,40 @@ export default function Home() {
       if (q) params.set("q", q);
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (regionFilter !== "all") params.set("region", regionFilter);
-      if (disciplineFilter !== "all") params.set("discipline", disciplineFilter);
+      if (cuisineFilter !== "all") params.set("cuisine", cuisineFilter);
       if (priorityFilter !== "all") params.set("priority", priorityFilter);
-      const res = await fetch(`/api/leads?${params.toString()}`);
+      const res = await fetch(`/api/restaurants?${params.toString()}`);
       const data = await res.json();
       setLeads(data.leads ?? []);
     } catch {
-      toast({ title: "Error", description: "Failed to load leads", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to load restaurants",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
-  }, [q, statusFilter, regionFilter, disciplineFilter, priorityFilter, toast]);
+  }, [q, statusFilter, regionFilter, cuisineFilter, priorityFilter, toast]);
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/leads/stats");
+      const res = await fetch("/api/restaurants/stats");
       const data = await res.json();
       setStats(data);
     } catch {
       // silent
     }
   }, []);
+
+  useEffect(() => {
+    if (prevBulk.current && !bulkGenerating) {
+      // just finished a bulk run, refresh data
+      fetchLeads();
+      fetchStats();
+    }
+    prevBulk.current = bulkGenerating;
+  }, [bulkGenerating, fetchLeads, fetchStats]);
 
   useEffect(() => {
     fetchLeads();
@@ -159,12 +179,12 @@ export default function Home() {
   const handleSeed = async () => {
     setSeeding(true);
     try {
-      const res = await fetch("/api/leads/seed", { method: "POST" });
+      const res = await fetch("/api/restaurants/seed", { method: "POST" });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       toast({
         title: "Seed complete",
-        description: `Inserted ${data.inserted} • Skipped ${data.skipped} (already existed) • Total ${data.total}`,
+        description: `Inserted ${data.inserted}. Skipped ${data.skipped} (already existed). Total ${data.total}.`,
       });
       fetchLeads();
       fetchStats();
@@ -180,17 +200,19 @@ export default function Home() {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    // optimistic
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
     try {
-      const res = await fetch(`/api/leads/${id}`, {
+      const res = await fetch(`/api/restaurants/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      toast({ title: "Status updated", description: `Marked as ${STATUS_META[status as LeadStatus]?.label}` });
+      toast({
+        title: "Status updated",
+        description: `Marked as ${RESTAURANT_STATUS_META[status as RestaurantStatus]?.label}`,
+      });
       fetchStats();
     } catch (e) {
       toast({
@@ -207,7 +229,7 @@ export default function Home() {
       prev.map((l) => (l.id === id ? { ...l, priority } : l))
     );
     try {
-      const res = await fetch(`/api/leads/${id}`, {
+      const res = await fetch(`/api/restaurants/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priority }),
@@ -222,66 +244,13 @@ export default function Home() {
   const deleteLead = async (id: string, name: string) => {
     setLeads((prev) => prev.filter((l) => l.id !== id));
     try {
-      const res = await fetch(`/api/leads/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/restaurants/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      toast({ title: "Lead deleted", description: name });
+      toast({ title: "Restaurant deleted", description: name });
       fetchStats();
     } catch {
       fetchLeads();
-    }
-  };
-
-  // Bulk-generate messages for leads that don't have one yet
-  const bulkGenerate = async () => {
-    setBulkGenerating(true);
-    try {
-      const res = await fetch("/api/leads/generate-messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      toast({
-        title: "Messages generated",
-        description: `${data.generated} created • ${data.failed} failed. Refreshing…`,
-      });
-      fetchLeads();
-    } catch (e) {
-      toast({
-        title: "Generation failed",
-        description: e instanceof Error ? e.message : "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setBulkGenerating(false);
-    }
-  };
-
-  // Restaurant bulk generate
-  const restaurantBulkGenerate = async () => {
-    setRestaurantBulkGen(true);
-    try {
-      const res = await fetch("/api/restaurants/generate-messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      toast({
-        title: "Restaurant messages generated",
-        description: `${data.generated} created. Refreshing…`,
-      });
-    } catch (e) {
-      toast({
-        title: "Generation failed",
-        description: e instanceof Error ? e.message : "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setRestaurantBulkGen(false);
     }
   };
 
@@ -289,9 +258,13 @@ export default function Home() {
     const headers = [
       "name",
       "instagram",
+      "phone",
       "city",
       "region",
-      "disciplines",
+      "cuisine",
+      "hasWebsite",
+      "reservationSystem",
+      "botDeployed",
       "status",
       "priority",
       "notes",
@@ -301,10 +274,14 @@ export default function Home() {
     const rows = leads.map((l) =>
       [
         l.name,
-        "@" + l.instagram,
+        l.instagram ? "@" + l.instagram : "",
+        l.phone ?? "",
         l.city ?? "",
         l.region ?? "",
-        l.disciplines,
+        l.cuisine ?? "",
+        l.hasWebsite ? "yes" : "no",
+        l.reservationSystem ?? "",
+        l.botDeployed ? "yes" : "no",
         l.status,
         l.priority,
         (l.notes ?? "").replace(/"/g, '""'),
@@ -319,51 +296,72 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `uk-gym-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `uk-restaurant-leads-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: "Exported", description: `${leads.length} leads to CSV` });
+    toast({ title: "Exported", description: `${leads.length} restaurants to CSV` });
   };
 
   const clearFilters = () => {
     setQ("");
     setStatusFilter("all");
     setRegionFilter("all");
-    setDisciplineFilter("all");
+    setCuisineFilter("all");
     setPriorityFilter("all");
     setVerifiedOnly(false);
     setPage(1);
   };
 
   const hasFilters =
-    q || statusFilter !== "all" || regionFilter !== "all" || disciplineFilter !== "all" || priorityFilter !== "all" || verifiedOnly;
+    q ||
+    statusFilter !== "all" ||
+    regionFilter !== "all" ||
+    cuisineFilter !== "all" ||
+    priorityFilter !== "all" ||
+    verifiedOnly;
 
   // apply verified-only filter client-side (medium/high priority = verified)
   const displayLeads = useMemo(() => {
     if (!verifiedOnly) return leads;
-    return leads.filter((l) => l.priority === "medium" || l.priority === "high");
+    return leads.filter(
+      (l) => l.priority === "medium" || l.priority === "high"
+    );
   }, [leads, verifiedOnly]);
 
   // pagination
   const totalPages = Math.max(1, Math.ceil(displayLeads.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const paginatedLeads = displayLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedLeads = displayLeads.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   // reset page when filters change
-  useEffect(() => { setPage(1); }, [q, statusFilter, regionFilter, disciplineFilter, priorityFilter, verifiedOnly]);
+  useEffect(() => {
+    setPage(1);
+  }, [q, statusFilter, regionFilter, cuisineFilter, priorityFilter, verifiedOnly]);
 
-  // response rate
+  // derived stats for sub-text
+  const demoSentCount = stats?.byStatus.demo_sent ?? 0;
+  const wonCount = stats?.byStatus.won ?? 0;
+  const contactedCount = stats?.byStatus.contacted ?? 0;
   const responseRate = useMemo(() => {
     if (!stats || stats.total === 0) return 0;
-    const contacted = stats.byStatus.contacted + stats.byStatus.replied + stats.byStatus.interested + stats.byStatus.won + stats.byStatus.lost;
-    const responded = stats.byStatus.replied + stats.byStatus.interested + stats.byStatus.won;
+    const contacted =
+      (stats.byStatus.contacted ?? 0) +
+      (stats.byStatus.demo_sent ?? 0) +
+      (stats.byStatus.interested ?? 0) +
+      (stats.byStatus.won ?? 0) +
+      (stats.byStatus.lost ?? 0);
+    const responded =
+      (stats.byStatus.interested ?? 0) + (stats.byStatus.won ?? 0);
     if (contacted === 0) return 0;
     return Math.round((responded / contacted) * 100);
   }, [stats]);
 
   const winRate = useMemo(() => {
     if (!stats || stats.total === 0) return 0;
-    return Math.round((stats.byStatus.won / stats.total) * 100);
+    return Math.round(((stats.byStatus.won ?? 0) / stats.total) * 100);
   }, [stats]);
 
   return (
@@ -372,50 +370,18 @@ export default function Home() {
       <header className="border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`size-10 rounded-xl bg-gradient-to-br ${workspace === "gym" ? "from-rose-500 to-orange-500 shadow-rose-500/20" : "from-emerald-500 to-teal-500 shadow-emerald-500/20"} flex items-center justify-center shadow-lg`}>
-              {workspace === "gym" ? <Target className="size-5 text-white" /> : <UtensilsCrossed className="size-5 text-white" />}
+            <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <UtensilsCrossed className="size-5 text-white" />
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">
-                {workspace === "gym" ? "GymReach" : "DineReach"} CRM
+                DineReach. UK Restaurant Outreach CRM
               </h1>
               <p className="text-xs text-muted-foreground">
-                {workspace === "gym"
-                  ? "Cold outreach for MMA, Muay Thai & Boxing gyms"
-                  : "Reservation bot outreach for UK restaurants"}
+                Cold outreach pipeline for Instagram-friendly restaurants, pubs &amp; cafés
               </p>
             </div>
           </div>
-
-          {/* Workspace switcher */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border bg-slate-50 dark:bg-slate-900 p-0.5">
-              <button
-                onClick={() => setWorkspace("gym")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                  workspace === "gym"
-                    ? "bg-white dark:bg-slate-800 text-rose-600 shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Target className="size-3.5" />
-                Gyms
-              </button>
-              <button
-                onClick={() => setWorkspace("restaurant")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                  workspace === "restaurant"
-                    ? "bg-white dark:bg-slate-800 text-emerald-600 shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <UtensilsCrossed className="size-3.5" />
-                Restaurants
-              </button>
-            </div>
-          </div>
-
-          {workspace === "gym" && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -428,14 +394,14 @@ export default function Home() {
               ) : (
                 <Sparkles className="size-4" />
               )}
-              Load starter leads
+              Load sample restaurants
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={bulkGenerate}
+              onClick={onBulkGenerate}
               disabled={bulkGenerating}
-              title="Generate personalized DMs for leads missing one"
+              title="Generate personalized DMs for restaurants missing one (max 50 per batch)"
             >
               {bulkGenerating ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -444,57 +410,48 @@ export default function Home() {
               )}
               <span className="hidden sm:inline">Generate DMs</span>
             </Button>
-            <Button size="sm" onClick={() => { setEditing(null); setAddOpen(true); }}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setAddOpen(true);
+              }}
+            >
               <Plus className="size-4" />
-              Add lead
+              Add restaurant
             </Button>
           </div>
-          )}
         </div>
       </header>
 
-      {workspace === "restaurant" ? (
-        <RestaurantWorkspace
-          bulkGenerating={restaurantBulkGen}
-          onBulkGenerate={restaurantBulkGenerate}
-        />
-      ) : (
-      <>
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatCard
             icon={<Users className="size-4" />}
-            label="Total leads"
+            label="Total restaurants"
             value={stats?.total ?? 0}
             sub={`${(stats?.byPriority.medium ?? 0) + (stats?.byPriority.high ?? 0)} verified`}
-            accent="from-slate-500 to-slate-700"
-          />
-          <StatCard
-            icon={<BadgeCheck className="size-4" />}
-            label="Verified"
-            value={(stats?.byPriority.medium ?? 0) + (stats?.byPriority.high ?? 0)}
-            sub="from web search"
-            accent="from-emerald-500 to-green-600"
-          />
-          <StatCard
-            icon={<AlertCircle className="size-4" />}
-            label="To verify"
-            value={stats?.byPriority.low ?? 0}
-            sub="LLM-suggested"
-            accent="from-amber-500 to-orange-600"
+            accent="from-emerald-500 to-teal-500"
           />
           <StatCard
             icon={<MessageSquare className="size-4" />}
             label="Contacted"
-            value={stats?.byStatus.contacted ?? 0}
+            value={contactedCount}
             sub={`${responseRate}% response rate`}
             accent="from-sky-500 to-cyan-600"
           />
           <StatCard
+            icon={<Send className="size-4" />}
+            label="Demo Sent"
+            value={demoSentCount}
+            sub="AI bot demos shared"
+            accent="from-amber-500 to-orange-600"
+          />
+          <StatCard
             icon={<Trophy className="size-4" />}
             label="Won"
-            value={stats?.byStatus.won ?? 0}
+            value={wonCount}
             sub={`${winRate}% win rate`}
             accent="from-violet-500 to-fuchsia-600"
           />
@@ -507,7 +464,7 @@ export default function Home() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search gym name, @handle or city…"
+                  placeholder="Search restaurant name, @handle or city."
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   className="pl-9"
@@ -520,9 +477,9 @@ export default function Home() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All statuses</SelectItem>
-                    {LEAD_STATUSES.map((s) => (
+                    {RESTAURANT_STATUSES.map((s) => (
                       <SelectItem key={s} value={s}>
-                        {STATUS_META[s].label}
+                        {RESTAURANT_STATUS_META[s].label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -540,15 +497,15 @@ export default function Home() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={disciplineFilter} onValueChange={setDisciplineFilter}>
+                <Select value={cuisineFilter} onValueChange={setCuisineFilter}>
                   <SelectTrigger className="w-full md:w-[140px]">
-                    <SelectValue placeholder="Discipline" />
+                    <SelectValue placeholder="Cuisine" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All disciplines</SelectItem>
-                    {DISCIPLINES.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
+                    <SelectItem value="all">All cuisines</SelectItem>
+                    {CUISINES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -580,15 +537,25 @@ export default function Home() {
                 {hasFilters ? (
                   <>
                     <Badge variant="secondary">{displayLeads.length} match</Badge>
-                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="h-7 text-xs"
+                    >
                       <X className="size-3" /> Clear filters
                     </Button>
                   </>
                 ) : (
-                  <span className="hidden sm:inline">No filters applied — showing all leads</span>
+                  <span className="hidden sm:inline">No filters applied. Showing all restaurants.</span>
                 )}
               </div>
-              <Button variant="outline" size="sm" onClick={exportCsv} disabled={leads.length === 0}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportCsv}
+                disabled={leads.length === 0}
+              >
                 <Download className="size-4" />
                 Export CSV ({leads.length})
               </Button>
@@ -603,16 +570,24 @@ export default function Home() {
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : displayLeads.length === 0 ? (
-            <EmptyState onSeed={handleSeed} onAdd={() => { setEditing(null); setAddOpen(true); }} />
+            <EmptyState
+              onSeed={handleSeed}
+              onAdd={() => {
+                setEditing(null);
+                setAddOpen(true);
+              }}
+            />
           ) : (
             <>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/80 dark:bg-slate-900/80">
-                      <TableHead className="min-w-[220px]">Gym</TableHead>
+                      <TableHead className="min-w-[220px]">Restaurant</TableHead>
                       <TableHead className="min-w-[140px]">Location</TableHead>
-                      <TableHead className="min-w-[180px]">Disciplines</TableHead>
+                      <TableHead className="min-w-[120px]">Cuisine</TableHead>
+                      <TableHead className="min-w-[140px]">Reservation</TableHead>
+                      <TableHead className="min-w-[110px]">Bot</TableHead>
                       <TableHead className="min-w-[120px]">Priority</TableHead>
                       <TableHead className="min-w-[150px]">Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -625,9 +600,15 @@ export default function Home() {
                         lead={lead}
                         onStatusChange={(s) => updateStatus(lead.id, s)}
                         onPriorityChange={(p) => updatePriority(lead.id, p)}
-                        onEdit={() => { setEditing(lead); setAddOpen(true); }}
+                        onEdit={() => {
+                          setEditing(lead);
+                          setAddOpen(true);
+                        }}
                         onDelete={() => deleteLead(lead.id, lead.name)}
-                        onMessage={() => { setMessageLead(lead); setMessageOpen(true); }}
+                        onMessage={() => {
+                          setMessageLead(lead);
+                          setMessageOpen(true);
+                        }}
                       />
                     ))}
                   </TableBody>
@@ -636,11 +617,18 @@ export default function Home() {
               {/* Pagination */}
               <div className="flex items-center justify-between px-4 py-3 border-t bg-slate-50/50 dark:bg-slate-900/50 flex-wrap gap-2">
                 <div className="text-xs text-muted-foreground">
-                  Showing <span className="font-medium text-foreground">{(currentPage - 1) * PAGE_SIZE + 1}</span>
-                  {"–"}
-                  <span className="font-medium text-foreground">{Math.min(currentPage * PAGE_SIZE, displayLeads.length)}</span>
-                  {" of "}
-                  <span className="font-medium text-foreground">{displayLeads.length}</span>
+                  Showing{" "}
+                  <span className="font-medium text-foreground">
+                    {(currentPage - 1) * PAGE_SIZE + 1}
+                  </span>{" "}
+                  to{" "}
+                  <span className="font-medium text-foreground">
+                    {Math.min(currentPage * PAGE_SIZE, displayLeads.length)}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-medium text-foreground">
+                    {displayLeads.length}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button
@@ -677,7 +665,9 @@ export default function Home() {
       <footer className="border-t bg-white dark:bg-slate-950 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
           <p>
-            GymReach CRM · {stats?.total ?? 0} leads tracked · {(stats?.byPriority.medium ?? 0) + (stats?.byPriority.high ?? 0)} verified · {stats?.byPriority.low ?? 0} to verify
+            DineReach CRM. {stats?.total ?? 0} restaurants tracked.{" "}
+            {(stats?.byPriority.medium ?? 0) + (stats?.byPriority.high ?? 0)} verified.{" "}
+            {stats?.byPriority.low ?? 0} to verify.
           </p>
           <p className="flex items-center gap-1.5">
             <Instagram className="size-3.5" />
@@ -703,11 +693,11 @@ export default function Home() {
         onOpenChange={setMessageOpen}
         lead={messageLead}
         onUpdated={(updated) => {
-          setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+          setLeads((prev) =>
+            prev.map((l) => (l.id === updated.id ? updated : l))
+          );
         }}
       />
-      </>
-      )}
     </div>
   );
 }
@@ -728,9 +718,13 @@ function StatCard({
 }) {
   return (
     <Card className="p-4 relative overflow-hidden">
-      <div className={`absolute -right-4 -top-4 size-16 rounded-full bg-gradient-to-br ${accent} opacity-10`} />
+      <div
+        className={`absolute -right-4 -top-4 size-16 rounded-full bg-gradient-to-br ${accent} opacity-10`}
+      />
       <div className="flex items-center gap-2 text-muted-foreground">
-        <div className={`size-7 rounded-lg bg-gradient-to-br ${accent} text-white flex items-center justify-center shadow`}>
+        <div
+          className={`size-7 rounded-lg bg-gradient-to-br ${accent} text-white flex items-center justify-center shadow`}
+        >
           {icon}
         </div>
         <span className="text-xs font-medium">{label}</span>
@@ -750,23 +744,26 @@ function LeadRow({
   onDelete,
   onMessage,
 }: {
-  lead: GymLead;
+  lead: RestaurantLead;
   onStatusChange: (s: string) => void;
   onPriorityChange: (p: string) => void;
   onEdit: () => void;
   onDelete: () => void;
   onMessage: () => void;
 }) {
-  const disciplines = lead.disciplines.split(",").map((d) => d.trim()).filter(Boolean);
-  const statusBadge = STATUS_META[lead.status as LeadStatus] ?? STATUS_META.new;
-  const priorityBadge = PRIORITY_META[lead.priority as LeadPriority] ?? PRIORITY_META.medium;
+  const statusBadge =
+    RESTAURANT_STATUS_META[lead.status as RestaurantStatus] ??
+    RESTAURANT_STATUS_META.new;
+  const priorityBadge =
+    PRIORITY_META[lead.priority as LeadPriority] ?? PRIORITY_META.medium;
+  const hasInstagram = !!lead.instagram;
 
   return (
     <TableRow className="hover:bg-slate-50/60 dark:hover:bg-slate-900/40">
       <TableCell>
         <div className="flex items-start gap-3">
-          <div className="size-9 rounded-lg bg-gradient-to-br from-rose-500/15 to-orange-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-            <Instagram className="size-4" />
+          <div className="size-9 rounded-lg bg-gradient-to-br from-emerald-500/15 to-teal-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <UtensilsCrossed className="size-4" />
           </div>
           <div className="min-w-0">
             <div className="font-medium text-sm truncate flex items-center gap-1.5">
@@ -775,42 +772,73 @@ function LeadRow({
                 <BadgeCheck className="size-3.5 text-emerald-500 shrink-0" />
               )}
             </div>
-            <a
-              href={`https://instagram.com/${lead.instagram}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-muted-foreground hover:text-rose-600 inline-flex items-center gap-1"
-            >
-              @{lead.instagram}
-              <ExternalLink className="size-3" />
-            </a>
+            {hasInstagram ? (
+              <a
+                href={`https://instagram.com/${lead.instagram}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-muted-foreground hover:text-emerald-600 inline-flex items-center gap-1"
+              >
+                @{lead.instagram}
+                <ExternalLink className="size-3" />
+              </a>
+            ) : (
+              <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                <Phone className="size-3" />
+                {lead.phone ?? "No contact"}
+              </span>
+            )}
           </div>
         </div>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-1.5 text-sm">
           <MapPin className="size-3.5 text-muted-foreground" />
-          <span>{lead.city ?? "—"}</span>
+          <span>{lead.city ?? "Unknown"}</span>
         </div>
-        <div className="text-xs text-muted-foreground ml-5">{lead.region ?? ""}</div>
+        <div className="text-xs text-muted-foreground ml-5">
+          {lead.region ?? ""}
+        </div>
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {disciplines.length === 0 ? (
-            <span className="text-xs text-muted-foreground">—</span>
-          ) : (
-            disciplines.map((d) => (
-              <Badge key={d} variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
-                {d}
-              </Badge>
-            ))
-          )}
-        </div>
+        {lead.cuisine ? (
+          <Badge
+            variant="outline"
+            className="text-[10px] py-0 px-1.5 font-normal"
+          >
+            {lead.cuisine}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">None</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <span className="text-xs">
+          {lead.reservationSystem ?? "None"}
+        </span>
+      </TableCell>
+      <TableCell>
+        {lead.botDeployed ? (
+          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900 text-[10px] py-0 px-1.5 font-normal gap-1">
+            <Bot className="size-3" />
+            Live
+          </Badge>
+        ) : (
+          <Badge
+            variant="outline"
+            className="text-[10px] py-0 px-1.5 font-normal text-muted-foreground"
+          >
+            Not deployed
+          </Badge>
+        )}
       </TableCell>
       <TableCell>
         <Select defaultValue={lead.priority} onValueChange={onPriorityChange}>
           <SelectTrigger className="h-7 w-[100px] text-xs border-0 p-0 hover:bg-slate-100 dark:hover:bg-slate-800">
-            <Badge variant="outline" className={priorityBadge.badge + " cursor-pointer"}>
+            <Badge
+              variant="outline"
+              className={priorityBadge.badge + " cursor-pointer"}
+            >
               {priorityBadge.label}
             </Badge>
           </SelectTrigger>
@@ -826,14 +854,17 @@ function LeadRow({
       <TableCell>
         <Select defaultValue={lead.status} onValueChange={onStatusChange}>
           <SelectTrigger className="h-7 w-[130px] text-xs border-0 p-0 hover:bg-slate-100 dark:hover:bg-slate-800">
-            <Badge variant="outline" className={statusBadge.badge + " cursor-pointer"}>
+            <Badge
+              variant="outline"
+              className={statusBadge.badge + " cursor-pointer"}
+            >
               {statusBadge.label}
             </Badge>
           </SelectTrigger>
           <SelectContent>
-            {LEAD_STATUSES.map((s) => (
+            {RESTAURANT_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
-                {STATUS_META[s].label}
+                {RESTAURANT_STATUS_META[s].label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -860,7 +891,13 @@ function LeadRow({
               </>
             )}
           </Button>
-          <Button variant="ghost" size="icon" className="size-8" onClick={onEdit} title="Edit">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={onEdit}
+            title="Edit"
+          >
             <Pencil className="size-3.5" />
           </Button>
           <DropdownMenu>
@@ -870,10 +907,15 @@ function LeadRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="text-xs text-muted-foreground">Confirm delete</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Confirm delete
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onClick={onDelete}>
-                <Trash2 className="size-3.5 mr-2" /> Delete lead
+              <DropdownMenuItem
+                className="text-rose-600 focus:text-rose-700"
+                onClick={onDelete}
+              >
+                <Trash2 className="size-3.5 mr-2" /> Delete restaurant
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -884,20 +926,28 @@ function LeadRow({
 }
 
 /* ---------- Empty state ---------- */
-function EmptyState({ onSeed, onAdd }: { onSeed: () => void; onAdd: () => void }) {
+function EmptyState({
+  onSeed,
+  onAdd,
+}: {
+  onSeed: () => void;
+  onAdd: () => void;
+}) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 px-4">
-      <div className="size-14 rounded-2xl bg-gradient-to-br from-rose-500/15 to-orange-500/15 flex items-center justify-center mb-4">
-        <Target className="size-7 text-rose-500" />
+      <div className="size-14 rounded-2xl bg-gradient-to-br from-emerald-500/15 to-teal-500/15 flex items-center justify-center mb-4">
+        <UtensilsCrossed className="size-7 text-emerald-500" />
       </div>
-      <h3 className="text-lg font-semibold">No leads yet</h3>
+      <h3 className="text-lg font-semibold">No restaurants yet</h3>
       <p className="text-sm text-muted-foreground mt-1 max-w-md">
-        Load the verified starter list of ~38 UK MMA, Muay Thai &amp; Boxing gym Instagram handles, or add your first lead manually.
+        Load a starter list of UK restaurant Instagram handles, or add your
+        first lead manually. Filter by cuisine, region, and reservation system
+        to plan outreach.
       </p>
       <div className="flex gap-2 mt-5">
         <Button onClick={onSeed}>
           <Sparkles className="size-4" />
-          Load starter leads
+          Load sample restaurants
         </Button>
         <Button variant="outline" onClick={onAdd}>
           <Plus className="size-4" />
@@ -917,7 +967,7 @@ function LeadDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  editing: GymLead | null;
+  editing: RestaurantLead | null;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
@@ -925,13 +975,14 @@ function LeadDialog({
   const [form, setForm] = useState({
     name: "",
     instagram: "",
+    phone: "",
     city: "",
     region: "",
-    disciplines: [] as string[],
+    cuisine: "",
+    hasWebsite: false,
+    reservationSystem: "None",
     priority: "medium",
     notes: "",
-    status: "new",
-    followUpAt: "",
   });
 
   useEffect(() => {
@@ -939,74 +990,79 @@ function LeadDialog({
       if (editing) {
         setForm({
           name: editing.name,
-          instagram: editing.instagram,
+          instagram: editing.instagram ?? "",
+          phone: editing.phone ?? "",
           city: editing.city ?? "",
           region: editing.region ?? "",
-          disciplines: editing.disciplines.split(",").map((d) => d.trim()).filter(Boolean),
+          cuisine: editing.cuisine ?? "",
+          hasWebsite: editing.hasWebsite,
+          reservationSystem: editing.reservationSystem ?? "None",
           priority: editing.priority,
           notes: editing.notes ?? "",
-          status: editing.status,
-          followUpAt: editing.followUpAt ? editing.followUpAt.slice(0, 10) : "",
         });
       } else {
         setForm({
           name: "",
           instagram: "",
+          phone: "",
           city: "",
           region: "",
-          disciplines: [],
+          cuisine: "",
+          hasWebsite: false,
+          reservationSystem: "None",
           priority: "medium",
           notes: "",
-          status: "new",
-          followUpAt: "",
         });
       }
     }
   }, [open, editing]);
 
-  const toggleDiscipline = (d: string) => {
-    setForm((f) => ({
-      ...f,
-      disciplines: f.disciplines.includes(d)
-        ? f.disciplines.filter((x) => x !== d)
-        : [...f.disciplines, d],
-    }));
-  };
-
   const submit = async () => {
-    if (!form.name.trim() || !form.instagram.trim()) {
-      toast({ title: "Missing info", description: "Gym name and Instagram handle are required", variant: "destructive" });
+    if (!form.name.trim()) {
+      toast({
+        title: "Missing info",
+        description: "Restaurant name is required",
+        variant: "destructive",
+      });
       return;
     }
     setSaving(true);
     try {
       const payload = {
         name: form.name.trim(),
-        instagram: form.instagram.trim(),
+        instagram: form.instagram.trim() ? form.instagram.trim() : null,
+        phone: form.phone.trim() ? form.phone.trim() : null,
         city: form.city.trim(),
         region: form.region,
-        disciplines: form.disciplines.join(","),
+        cuisine: form.cuisine,
+        hasWebsite: form.hasWebsite,
+        reservationSystem: form.reservationSystem,
         priority: form.priority,
         notes: form.notes.trim(),
       };
       if (editing) {
-        const res = await fetch(`/api/leads/${editing.id}`, {
+        const res = await fetch(`/api/restaurants/${editing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, followUpAt: form.followUpAt || null }),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        toast({ title: "Lead updated" });
+        toast({ title: "Restaurant updated" });
       } else {
-        const res = await fetch("/api/leads", {
+        const res = await fetch("/api/restaurants", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        toast({ title: "Lead added", description: `@${data.lead.instagram}` });
+        toast({
+          title: "Restaurant added",
+          description: data.lead?.instagram
+            ? `@${data.lead.instagram}`
+            : data.lead?.name,
+        });
       }
       onSaved();
       onOpenChange(false);
@@ -1025,126 +1081,189 @@ function LeadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit lead" : "Add new lead"}</DialogTitle>
+          <DialogTitle>
+            {editing ? "Edit restaurant" : "Add new restaurant"}
+          </DialogTitle>
           <DialogDescription>
-            {editing ? "Update the details for this gym." : "Add a UK gym to your outreach pipeline."}
+            {editing
+              ? "Update the details for this restaurant."
+              : "Add a UK restaurant to your outreach pipeline."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
           <div className="grid gap-2">
-            <Label htmlFor="name">Gym name *</Label>
+            <Label htmlFor="r-name">Restaurant name *</Label>
             <Input
-              id="name"
+              id="r-name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="e.g. Stonebridge Boxing Club"
+              placeholder="e.g. The Copper Pot"
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="ig">Instagram handle *</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
-              <Input
-                id="ig"
-                value={form.instagram}
-                onChange={(e) => setForm({ ...form, instagram: e.target.value.replace(/^@/, "") })}
-                placeholder="stonebridgeboxingclub"
-                className="pl-8"
-              />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="r-ig">Instagram handle</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                  @
+                </span>
+                <Input
+                  id="r-ig"
+                  value={form.instagram}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      instagram: e.target.value.replace(/^@/, ""),
+                    })
+                  }
+                  placeholder="thecopperpot"
+                  className="pl-8"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="r-phone">Phone</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  id="r-phone"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="020 7946 0000"
+                  className="pl-9"
+                />
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="city">City</Label>
+              <Label htmlFor="r-city">City</Label>
               <Input
-                id="city"
+                id="r-city"
                 value={form.city}
                 onChange={(e) => setForm({ ...form, city: e.target.value })}
                 placeholder="London"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="region">Region</Label>
-              <Select value={form.region} onValueChange={(v) => setForm({ ...form, region: v })}>
-                <SelectTrigger id="region">
+              <Label htmlFor="r-region">Region</Label>
+              <Select
+                value={form.region}
+                onValueChange={(v) => setForm({ ...form, region: v })}
+              >
+                <SelectTrigger id="r-region">
                   <SelectValue placeholder="Select region" />
                 </SelectTrigger>
                 <SelectContent>
                   {REGIONS.map((r) => (
-                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-          <div className="grid gap-2">
-            <Label>Disciplines</Label>
-            <div className="flex flex-wrap gap-2">
-              {DISCIPLINES.map((d) => {
-                const active = form.disciplines.includes(d);
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => toggleDiscipline(d)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
-                      active
-                        ? "bg-rose-500 text-white border-rose-500"
-                        : "bg-background border-input hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    {d}
-                  </button>
-                );
-              })}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="priority">Priority</Label>
-              <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
-                <SelectTrigger id="priority">
-                  <SelectValue />
+              <Label htmlFor="r-cuisine">Cuisine</Label>
+              <Select
+                value={form.cuisine}
+                onValueChange={(v) => setForm({ ...form, cuisine: v })}
+              >
+                <SelectTrigger id="r-cuisine">
+                  <SelectValue placeholder="Select cuisine" />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEAD_PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p}>{PRIORITY_META[p].label}</SelectItem>
+                  {CUISINES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {editing && (
-              <div className="grid gap-2">
-                <Label htmlFor="followUp">Follow-up date</Label>
-                <Input
-                  id="followUp"
-                  type="date"
-                  value={form.followUpAt}
-                  onChange={(e) => setForm({ ...form, followUpAt: e.target.value })}
+            <div className="grid gap-2">
+              <Label htmlFor="r-res">Reservation system</Label>
+              <Select
+                value={form.reservationSystem}
+                onValueChange={(v) =>
+                  setForm({ ...form, reservationSystem: v })
+                }
+              >
+                <SelectTrigger id="r-res">
+                  <SelectValue placeholder="Select system" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RESERVATION_SYSTEMS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="r-priority">Priority</Label>
+              <Select
+                value={form.priority}
+                onValueChange={(v) => setForm({ ...form, priority: v })}
+              >
+                <SelectTrigger id="r-priority">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEAD_PRIORITIES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {PRIORITY_META[p].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="r-web">Website</Label>
+              <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer select-none">
+                <Checkbox
+                  id="r-web"
+                  checked={form.hasWebsite}
+                  onCheckedChange={(v) =>
+                    setForm({ ...form, hasWebsite: v === true })
+                  }
                 />
-              </div>
-            )}
+                <span className="text-xs inline-flex items-center gap-1">
+                  <Globe className="size-3.5 text-muted-foreground" />
+                  Has a website
+                </span>
+              </label>
+            </div>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="r-notes">Notes</Label>
             <Textarea
-              id="notes"
+              id="r-notes"
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Follower count, coach name, what they offer, why they're a good fit…"
+              placeholder="Follower count, owner name, menu highlights, why they would benefit from an AI booking bot."
               rows={3}
             />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
             Cancel
           </Button>
           <Button onClick={submit} disabled={saving}>
             {saving && <Loader2 className="size-4 animate-spin" />}
-            {editing ? "Save changes" : "Add lead"}
+            {editing ? "Save changes" : "Add restaurant"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1161,8 +1280,8 @@ function MessageDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  lead: GymLead | null;
-  onUpdated: (lead: GymLead) => void;
+  lead: RestaurantLead | null;
+  onUpdated: (lead: RestaurantLead) => void;
 }) {
   const { toast } = useToast();
   const [message, setMessage] = useState("");
@@ -1180,12 +1299,17 @@ function MessageDialog({
     if (!lead) return;
     setGenerating(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/message`, { method: "POST" });
+      const res = await fetch(`/api/restaurants/${lead.id}/message`, {
+        method: "POST",
+      });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setMessage(data.message);
       if (data.lead) onUpdated(data.lead);
-      toast({ title: "Message generated", description: "Review, edit, then copy & open Instagram." });
+      toast({
+        title: "Message generated",
+        description: "Review, edit, then copy and open Instagram.",
+      });
     } catch (e) {
       toast({
         title: "Generation failed",
@@ -1199,34 +1323,40 @@ function MessageDialog({
 
   const copyAndOpen = async () => {
     if (!lead || !message) return;
-    try {
-      await navigator.clipboard.writeText(message);
-      setCopied(true);
+    const doCopy = async () => {
+      try {
+        await navigator.clipboard.writeText(message);
+      } catch {
+        const textarea = document.createElement("textarea");
+        textarea.value = message;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+    };
+    await doCopy();
+    setCopied(true);
+    if (lead.instagram) {
       window.open(`https://instagram.com/${lead.instagram}`, "_blank");
       toast({
-        title: "Copied! Instagram opened",
-        description: "Click Message on their profile and paste (Ctrl+V / Cmd+V).",
+        title: "Copied. Instagram opened.",
+        description:
+          "Click Message on their profile and paste (Ctrl+V or Cmd+V).",
       });
-      setTimeout(() => setCopied(false), 3000);
-    } catch {
-      // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = message;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      window.open(`https://instagram.com/${lead.instagram}`, "_blank");
-      setCopied(true);
-      toast({ title: "Copied! Instagram opened", description: "Paste the message in their DM." });
-      setTimeout(() => setCopied(false), 3000);
+    } else {
+      toast({
+        title: "Copied to clipboard.",
+        description: "No Instagram handle on file. Paste it where you need.",
+      });
     }
+    setTimeout(() => setCopied(false), 3000);
   };
 
   const saveEdit = async () => {
     if (!lead) return;
     try {
-      const res = await fetch(`/api/leads/${lead.id}`, {
+      const res = await fetch(`/api/restaurants/${lead.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notes: lead.notes, message }),
@@ -1252,23 +1382,30 @@ function MessageDialog({
       <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Instagram className="size-4 text-rose-500" />
-            DM — {lead.name}
+            <Instagram className="size-4 text-emerald-500" />
+            DM for {lead.name}
           </DialogTitle>
           <DialogDescription>
-            <a
-              href={`https://instagram.com/${lead.instagram}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-rose-600 inline-flex items-center gap-1"
-            >
-              @{lead.instagram}
-              <ExternalLink className="size-3" />
-            </a>
+            {lead.instagram ? (
+              <a
+                href={`https://instagram.com/${lead.instagram}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-emerald-600 inline-flex items-center gap-1"
+              >
+                @{lead.instagram}
+                <ExternalLink className="size-3" />
+              </a>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <Phone className="size-3" />
+                {lead.phone ?? "No contact on file"}
+              </span>
+            )}
             {" · "}
             {lead.city ?? lead.region ?? "UK"}
             {" · "}
-            {lead.disciplines || "MMA"}
+            {lead.cuisine ?? "Restaurant"}
           </DialogDescription>
         </DialogHeader>
 
@@ -1281,11 +1418,13 @@ function MessageDialog({
                   onChange={(e) => setMessage(e.target.value)}
                   rows={8}
                   className="resize-none pr-16 text-sm leading-relaxed"
-                  placeholder="Your DM message…"
+                  placeholder="Your DM message."
                 />
                 <span
                   className={`absolute bottom-2 right-3 text-[10px] ${
-                    charCount > 1000 ? "text-rose-500 font-medium" : "text-muted-foreground"
+                    charCount > 1000
+                      ? "text-rose-500 font-medium"
+                      : "text-muted-foreground"
                   }`}
                 >
                   {charCount}
@@ -1307,7 +1446,12 @@ function MessageDialog({
                   )}
                   Regenerate
                 </Button>
-                <Button variant="ghost" size="sm" onClick={saveEdit} className="text-xs">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={saveEdit}
+                  className="text-xs"
+                >
                   <Pencil className="size-3.5" />
                   Save edits
                 </Button>
@@ -1316,42 +1460,52 @@ function MessageDialog({
               <div className="flex gap-2">
                 <Button
                   onClick={copyAndOpen}
-                  className="flex-1 bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white"
+                  className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
                 >
                   {copied ? (
                     <>
                       <Check className="size-4" />
-                      Copied! Open IG →
+                      Copied. {lead.instagram ? "Open IG." : "Ready."}
                     </>
                   ) : (
                     <>
                       <Copy className="size-4" />
-                      Copy &amp; Open Instagram
+                      {lead.instagram
+                        ? "Copy & Open Instagram"
+                        : "Copy to clipboard"}
                     </>
                   )}
                 </Button>
               </div>
 
               <p className="text-[11px] text-muted-foreground text-center">
-                Message copied to clipboard. On their IG profile, click &ldquo;Message&rdquo; and paste.
+                {lead.instagram
+                  ? "Message copied to clipboard. On their IG profile, click Message and paste."
+                  : "Message copied to clipboard. No Instagram handle on file, paste it where you need."}
               </p>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center text-center py-8 gap-4">
-              <div className="size-12 rounded-xl bg-gradient-to-br from-rose-500/15 to-orange-500/15 flex items-center justify-center">
-                <MessageCircle className="size-6 text-rose-500" />
+              <div className="size-12 rounded-xl bg-gradient-to-br from-emerald-500/15 to-teal-500/15 flex items-center justify-center">
+                <MessageCircle className="size-6 text-emerald-500" />
               </div>
               <div>
                 <p className="font-medium text-sm">No message yet</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Generate a personalized cold DM using AI. It reads the gym&apos;s name, city, and discipline to write a unique opening line — no generic &ldquo;I came across your gym&rdquo;.
+                  Generate a personalized cold DM using AI. It reads the
+                  restaurant name, city, and cuisine to write a unique opening
+                  line, no generic &ldquo;I came across your restaurant&rdquo;.
                 </p>
               </div>
-              <Button onClick={generate} disabled={generating} className="bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white">
+              <Button
+                onClick={generate}
+                disabled={generating}
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
+              >
                 {generating ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    Writing your DM…
+                    Writing your DM.
                   </>
                 ) : (
                   <>

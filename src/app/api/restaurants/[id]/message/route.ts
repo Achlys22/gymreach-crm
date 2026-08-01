@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { generateMessage, generateMessageVariant } from "@/lib/message-template";
+import { generateRestaurantMessage, generateRestaurantMessageVariant } from "@/lib/restaurant-message-template";
 
-interface LeadInfo {
+interface RestaurantInfo {
   name: string;
-  instagram: string;
+  instagram: string | null;
+  phone: string | null;
   city: string | null;
   region: string | null;
-  disciplines: string;
+  cuisine: string | null;
+  reservationSystem: string | null;
   notes: string | null;
 }
 
@@ -17,45 +19,42 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const lead = await db.gymLead.findUnique({ where: { id } });
+    const lead = await db.restaurantLead.findUnique({ where: { id } });
 
     if (!lead) {
-      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+      return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
     }
 
-    const leadInfo: LeadInfo = {
+    const info: RestaurantInfo = {
       name: lead.name,
       instagram: lead.instagram,
+      phone: lead.phone,
       city: lead.city,
       region: lead.region,
-      disciplines: lead.disciplines,
+      cuisine: lead.cuisine,
+      reservationSystem: lead.reservationSystem,
       notes: lead.notes,
     };
 
-    // Check if this is a "regenerate" request (lead already has a message)
     const body = await req.json().catch(() => ({}));
     const isRegenerate = body?.regenerate === true || !!lead.message;
 
     const message = isRegenerate
-      ? generateMessageVariant(leadInfo)
-      : generateMessage(leadInfo);
+      ? generateRestaurantMessageVariant(info)
+      : generateRestaurantMessage(info);
 
     if (!message) {
-      return NextResponse.json(
-        { error: "Failed to generate message." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to generate message." }, { status: 500 });
     }
 
-    // Save to DB
-    const updated = await db.gymLead.update({
+    const updated = await db.restaurantLead.update({
       where: { id },
       data: { message },
     });
 
     return NextResponse.json({ lead: updated, message });
   } catch (e) {
-    console.error("POST /api/leads/[id]/message error", e);
+    console.error("POST /api/restaurants/[id]/message error", e);
     return NextResponse.json({ error: "Failed to generate message" }, { status: 500 });
   }
 }

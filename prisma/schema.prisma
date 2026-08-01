@@ -29,3 +29,27 @@ model GymLead {
   @@index([status])
   @@index([region])
 }
+
+model RestaurantLead {
+  id               String    @id @default(cuid())
+  name             String
+  instagram        String?
+  phone            String?
+  city             String?
+  region           String?
+  cuisine          String?   // Italian, Indian, Fine Dining, Pub, etc.
+  hasWebsite       Boolean   @default(false)
+  reservationSystem String?  // OpenTable, Resy, TheFork, SevenRooms, None
+  botDeployed      Boolean   @default(false)
+  status           String    @default("new") // new, contacted, demo_sent, interested, won, lost
+  priority         String    @default("medium")
+  notes            String?
+  message          String?   // generated pitch for reservation bot
+  followUpAt       DateTime?
+  contactedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status])
+  @@index([region])
+}
