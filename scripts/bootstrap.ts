@@ -1,15 +1,18 @@
 /**
  * Bootstrap — runs on every container start.
- * If the database is empty, imports all leads from db-backup.json.
- * If the database already has leads, skips (idempotent — preserves
- * any outreach progress you've made).
+ * Imports any missing leads from db-backup.json.
+ * - If a lead already exists (by instagram handle), skips it (preserves progress)
+ * - If a lead doesn't exist, creates it
+ *
+ * This handles both fresh deploys (empty DB → imports everything) AND
+ * existing deploys (adds new leads from updated backup without losing data).
  *
  * Usage: bun run scripts/bootstrap.ts
  */
 import { db } from "../src/lib/db";
 import { readFileSync, existsSync } from "fs";
 
-interface BackupLead {
+interface BackupGymLead {
   name: string;
   instagram: string;
   city: string | null;
@@ -18,32 +21,59 @@ interface BackupLead {
   status: string;
   priority: string;
   notes: string | null;
+  message: string | null;
+  contactedAt: string | null;
+  followUpAt: string | null;
+}
+
+interface BackupRestaurantLead {
+  name: string;
+  instagram: string | null;
+  phone: string | null;
+  city: string | null;
+  region: string | null;
+  cuisine: string | null;
+  hasWebsite: boolean;
+  reservationSystem: string | null;
+  botDeployed: boolean;
+  status: string;
+  priority: string;
+  notes: string | null;
+  message: string | null;
   contactedAt: string | null;
   followUpAt: string | null;
 }
 
 async function main() {
-  // Ensure schema exists
   console.log("Bootstrap: checking database...");
 
-  const existing = await db.gymLead.count();
-
-  if (existing > 0) {
-    console.log(`Bootstrap: database already has ${existing} leads — skipping import.`);
-    return;
-  }
-
   if (!existsSync("db-backup.json")) {
-    console.log("Bootstrap: no db-backup.json found — starting with empty database.");
+    console.log("Bootstrap: no db-backup.json found — skipping.");
     return;
   }
 
-  console.log("Bootstrap: database is empty — importing leads from db-backup.json...");
-  const data: BackupLead[] = JSON.parse(readFileSync("db-backup.json", "utf-8"));
+  console.log("Bootstrap: loading db-backup.json...");
+  const raw = JSON.parse(readFileSync("db-backup.json", "utf-8"));
 
-  let imported = 0;
-  for (const lead of data) {
+  // Handle both v2 (object) and v1 (flat array) formats
+  const isV2 = !Array.isArray(raw) && raw.gymLeads;
+  const gymLeads: BackupGymLead[] = isV2 ? raw.gymLeads : (Array.isArray(raw) ? raw : []);
+  const restaurantLeads: BackupRestaurantLead[] = isV2 ? (raw.restaurantLeads || []) : [];
+
+  const existingGym = await db.gymLead.count();
+  const existingRest = await db.restaurantLead.count();
+  console.log(`Bootstrap: DB has ${existingGym} gym leads + ${existingRest} restaurant leads`);
+
+  // --- Import gym leads (skip existing) ---
+  let gymImported = 0;
+  let gymSkipped = 0;
+  for (const lead of gymLeads) {
     try {
+      const exists = await db.gymLead.findUnique({ where: { instagram: lead.instagram } });
+      if (exists) {
+        gymSkipped++;
+        continue;
+      }
       await db.gymLead.create({
         data: {
           name: lead.name,
@@ -54,17 +84,71 @@ async function main() {
           status: lead.status,
           priority: lead.priority,
           notes: lead.notes,
+          message: lead.message,
           contactedAt: lead.contactedAt ? new Date(lead.contactedAt) : null,
           followUpAt: lead.followUpAt ? new Date(lead.followUpAt) : null,
         },
       });
-      imported++;
-    } catch (e) {
-      // skip duplicates / errors
+      gymImported++;
+    } catch {
+      gymSkipped++;
     }
   }
 
-  console.log(`Bootstrap: imported ${imported} of ${data.length} leads.`);
+  // --- Import restaurant leads (skip existing by instagram OR name+city) ---
+  let restImported = 0;
+  let restSkipped = 0;
+  for (const lead of restaurantLeads) {
+    try {
+      // Check by instagram if available
+      if (lead.instagram) {
+        const existsByIg = await db.restaurantLead.findFirst({
+          where: { instagram: lead.instagram },
+        });
+        if (existsByIg) {
+          restSkipped++;
+          continue;
+        }
+      }
+      // Check by name + city (for leads without instagram)
+      const existsByName = await db.restaurantLead.findFirst({
+        where: { name: lead.name, city: lead.city },
+      });
+      if (existsByName) {
+        restSkipped++;
+        continue;
+      }
+
+      await db.restaurantLead.create({
+        data: {
+          name: lead.name,
+          instagram: lead.instagram,
+          phone: lead.phone,
+          city: lead.city,
+          region: lead.region,
+          cuisine: lead.cuisine,
+          hasWebsite: lead.hasWebsite ?? false,
+          reservationSystem: lead.reservationSystem,
+          botDeployed: lead.botDeployed ?? false,
+          status: lead.status,
+          priority: lead.priority,
+          notes: lead.notes,
+          message: lead.message,
+          contactedAt: lead.contactedAt ? new Date(lead.contactedAt) : null,
+          followUpAt: lead.followUpAt ? new Date(lead.followUpAt) : null,
+        },
+      });
+      restImported++;
+    } catch {
+      restSkipped++;
+    }
+  }
+
+  console.log(`Bootstrap: gym leads — imported ${gymImported}, skipped ${gymSkipped} (already existed)`);
+  console.log(`Bootstrap: restaurant leads — imported ${restImported}, skipped ${restSkipped} (already existed)`);
+
+  const [finalGym, finalRest] = await Promise.all([db.gymLead.count(), db.restaurantLead.count()]);
+  console.log(`Bootstrap: final count — ${finalGym} gym + ${finalRest} restaurant = ${finalGym + finalRest} total`);
 }
 
 main()
