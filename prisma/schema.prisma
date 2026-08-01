@@ -20,7 +20,8 @@ model GymLead {
   status      String    @default("new") // new, contacted, replied, interested, won, lost
   priority    String    @default("medium") // low, medium, high
   notes       String?
-  message     String?   // LLM-generated personalized cold DM
+  detail      String?   // manually-researched specific detail for Line 1
+  message     String?   // generated personalized cold DM
   followUpAt  DateTime?
   contactedAt DateTime?
   createdAt   DateTime  @default(now())
@@ -44,6 +45,7 @@ model RestaurantLead {
   status           String    @default("new") // new, contacted, demo_sent, interested, won, lost
   priority         String    @default("medium")
   notes            String?
+  detail           String?   // manually-researched specific detail for Line 1
   message          String?   // generated pitch for reservation bot
   followUpAt       DateTime?
   contactedAt      DateTime?

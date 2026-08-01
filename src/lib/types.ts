@@ -8,6 +8,7 @@ export interface GymLead {
   status: string;
   priority: string;
   notes: string | null;
+  detail: string | null;
   message: string | null;
   followUpAt: string | null;
   contactedAt: string | null;

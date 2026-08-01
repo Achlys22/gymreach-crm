@@ -21,6 +21,7 @@ interface BackupGymLead {
   status: string;
   priority: string;
   notes: string | null;
+  detail: string | null;
   message: string | null;
   contactedAt: string | null;
   followUpAt: string | null;
@@ -39,6 +40,7 @@ interface BackupRestaurantLead {
   status: string;
   priority: string;
   notes: string | null;
+  detail: string | null;
   message: string | null;
   contactedAt: string | null;
   followUpAt: string | null;
@@ -84,6 +86,7 @@ async function main() {
           status: lead.status,
           priority: lead.priority,
           notes: lead.notes,
+          detail: lead.detail,
           message: lead.message,
           contactedAt: lead.contactedAt ? new Date(lead.contactedAt) : null,
           followUpAt: lead.followUpAt ? new Date(lead.followUpAt) : null,
@@ -133,6 +136,7 @@ async function main() {
           status: lead.status,
           priority: lead.priority,
           notes: lead.notes,
+          detail: lead.detail,
           message: lead.message,
           contactedAt: lead.contactedAt ? new Date(lead.contactedAt) : null,
           followUpAt: lead.followUpAt ? new Date(lead.followUpAt) : null,

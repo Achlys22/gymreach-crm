@@ -8,12 +8,13 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { status, priority, notes, followUpAt } = body;
+    const { status, priority, notes, detail, followUpAt } = body;
 
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
     if (priority !== undefined) data.priority = priority;
     if (notes !== undefined) data.notes = notes;
+    if (detail !== undefined) data.detail = detail || null;
     if (followUpAt !== undefined) data.followUpAt = followUpAt ? new Date(followUpAt) : null;
 
     // auto-set contactedAt when moving to "contacted"

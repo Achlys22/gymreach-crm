@@ -1,15 +1,18 @@
 /**
  * Gym message template — conversion-optimized.
  *
- * Same 4-line psychology structure as restaurants:
- *   1. Hook (5-10 words, references gym name/city/discipline)
- *   2. Pain (ONE easy question + soft general problem, loss-framed)
+ * 4-line structure:
+ *   1. Hook (uses specific detail OR returns "SKIP — needs manual detail")
+ *   2. Pain (ONE rhetorical question + soft general problem, loss-framed)
  *   3. Solution (outcome only, max 15 words)
- *   4. Close (offer a demo, "want me to send it over?" style)
+ *   4. Close (offer demo, "want me to send it over?" style)
  *
- * Gym-specific pain: not showing up when people search locally.
- * Gym-specific solution: Google Ads that put them at the top.
+ * Line 1 rule: if no specific detail is available (from manual research
+ * or extracted from notes), the entire message is "SKIP — needs manual detail"
+ * instead of generating filler like "standout spot" or "caught my eye".
  */
+
+import { extractDetail, buildHookWithDetail } from "./detail-extractor";
 
 interface LeadInfo {
   name: string;
@@ -18,7 +21,10 @@ interface LeadInfo {
   region: string | null;
   disciplines: string;
   notes: string | null;
+  detail: string | null; // manually-researched specific detail
 }
+
+export const SKIP_MESSAGE = "SKIP — needs manual detail";
 
 function primaryDiscipline(lead: LeadInfo): string {
   const d = lead.disciplines.split(",").map((x) => x.trim()).filter(Boolean);
@@ -30,29 +36,24 @@ function primaryDiscipline(lead: LeadInfo): string {
   return d[0];
 }
 
-// LINE 1 — Hook. 5-10 words, references name/city/discipline.
-function buildHook(lead: LeadInfo, seed: number): string {
-  const city = lead.city || "the UK";
-  const disc = primaryDiscipline(lead);
-  const name = lead.name;
+// LINE 1 — Hook. Uses specific detail or SKIPs.
+function buildHook(lead: LeadInfo): string {
+  // Priority 1: manually-set detail
+  if (lead.detail && lead.detail.trim().length > 2) {
+    return buildHookWithDetail(lead.name, lead.detail.trim(), "gym");
+  }
 
-  const hooks: string[] = [
-    `Saw ${name} in ${city}. Solid ${disc} setup.`,
-    `${name} in ${city} caught my eye.`,
-    `Been looking at ${disc} gyms in ${city}. ${name} stood out.`,
-    `Came across ${name}. Proper ${disc} gym.`,
-    `${name} came up on my feed. Looks legit.`,
-    `Saw ${name} in ${city}. Genuinely impressive setup.`,
-    `Noticed ${name} in ${city}. Real standout gym.`,
-    `${name} in ${city}. One of the better ones I've seen.`,
-    `Stumbled on ${name} in ${city}. Solid ${disc} place.`,
-    `${name} popped up. Proper ${disc} gym, not a cardio class.`,
-  ];
-  return hooks[seed % hooks.length];
+  // Priority 2: auto-extracted detail from notes
+  const extracted = extractDetail(lead.notes, lead.name);
+  if (extracted) {
+    return buildHookWithDetail(lead.name, extracted.detail, "gym");
+  }
+
+  // No specific detail found — SKIP
+  return SKIP_MESSAGE;
 }
 
-// LINE 2 — Pain. ONE easy question + soft general problem. Loss-framed.
-// Gym pain: people search locally and don't find them.
+// LINE 2 — Pain. ONE rhetorical question + soft general problem. Loss-framed.
 function buildPain(lead: LeadInfo, seed: number): string {
   const disc = primaryDiscipline(lead);
   const city = lead.city || "your area";
@@ -122,9 +123,14 @@ function hashString(s: string): number {
 }
 
 export function generateMessage(lead: LeadInfo, variant?: number): string {
-  const seed = hashString(lead.instagram + (lead.name || "")) + (variant ?? 0);
+  const hook = buildHook(lead);
 
-  const hook = buildHook(lead, seed);
+  // If no specific detail found, return SKIP
+  if (hook === SKIP_MESSAGE) {
+    return SKIP_MESSAGE;
+  }
+
+  const seed = hashString(lead.instagram + (lead.name || "")) + (variant ?? 0);
   const pain = buildPain(lead, Math.floor(seed / 7));
   const solution = buildSolution(Math.floor(seed / 13));
   const close = buildClose(Math.floor(seed / 19));
@@ -135,4 +141,11 @@ export function generateMessage(lead: LeadInfo, variant?: number): string {
 
 export function generateMessageVariant(lead: LeadInfo, attempt = 0): string {
   return generateMessage(lead, attempt + (Date.now() % 1000));
+}
+
+// Check if a lead has enough detail to generate a message
+export function hasDetail(lead: LeadInfo): boolean {
+  if (lead.detail && lead.detail.trim().length > 2) return true;
+  const extracted = extractDetail(lead.notes, lead.name);
+  return extracted !== null;
 }

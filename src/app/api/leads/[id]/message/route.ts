@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { generateMessage, generateMessageVariant } from "@/lib/message-template";
+import { generateMessage, generateMessageVariant, SKIP_MESSAGE } from "@/lib/message-template";
 
 interface LeadInfo {
   name: string;
@@ -9,6 +9,7 @@ interface LeadInfo {
   region: string | null;
   disciplines: string;
   notes: string | null;
+  detail: string | null;
 }
 
 export async function POST(
@@ -23,6 +24,17 @@ export async function POST(
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
 
+    const body = await req.json().catch(() => ({}));
+
+    // If a manual detail is provided in the request, save it to the DB
+    if (body?.detail !== undefined) {
+      await db.gymLead.update({
+        where: { id },
+        data: { detail: body.detail || null },
+      });
+      lead.detail = body.detail || null;
+    }
+
     const leadInfo: LeadInfo = {
       name: lead.name,
       instagram: lead.instagram,
@@ -30,12 +42,10 @@ export async function POST(
       region: lead.region,
       disciplines: lead.disciplines,
       notes: lead.notes,
+      detail: lead.detail,
     };
 
-    // Check if this is a "regenerate" request (lead already has a message)
-    const body = await req.json().catch(() => ({}));
-    const isRegenerate = body?.regenerate === true || !!lead.message;
-
+    const isRegenerate = body?.regenerate === true;
     const message = isRegenerate
       ? generateMessageVariant(leadInfo)
       : generateMessage(leadInfo);
@@ -47,13 +57,19 @@ export async function POST(
       );
     }
 
-    // Save to DB
-    const updated = await db.gymLead.update({
-      where: { id },
-      data: { message },
-    });
+    // Only save non-SKIP messages to the DB
+    const updated = message === SKIP_MESSAGE
+      ? lead
+      : await db.gymLead.update({
+          where: { id },
+          data: { message },
+        });
 
-    return NextResponse.json({ lead: updated, message });
+    return NextResponse.json({
+      lead: updated,
+      message,
+      skipped: message === SKIP_MESSAGE,
+    });
   } catch (e) {
     console.error("POST /api/leads/[id]/message error", e);
     return NextResponse.json({ error: "Failed to generate message" }, { status: 500 });

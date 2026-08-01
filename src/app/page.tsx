@@ -1152,7 +1152,7 @@ function LeadDialog({
   );
 }
 
-/* ---------- Message dialog (1-click DM workflow) ---------- */
+/* ---------- Message dialog (1-click DM workflow with detail) ---------- */
 function MessageDialog({
   open,
   onOpenChange,
@@ -1166,13 +1166,17 @@ function MessageDialog({
 }) {
   const { toast } = useToast();
   const [message, setMessage] = useState("");
+  const [detail, setDetail] = useState("");
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [skipped, setSkipped] = useState(false);
 
   useEffect(() => {
     if (open && lead) {
       setMessage(lead.message || "");
+      setDetail(lead.detail || "");
       setCopied(false);
+      setSkipped(lead.message === "SKIP — needs manual detail");
     }
   }, [open, lead]);
 
@@ -1180,12 +1184,25 @@ function MessageDialog({
     if (!lead) return;
     setGenerating(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/message`, { method: "POST" });
+      const res = await fetch(`/api/leads/${lead.id}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detail: detail || null }),
+      });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setMessage(data.message);
+      setSkipped(data.skipped === true);
       if (data.lead) onUpdated(data.lead);
-      toast({ title: "Message generated", description: "Review, edit, then copy & open Instagram." });
+      if (data.skipped) {
+        toast({
+          title: "Needs manual detail",
+          description: "Add a specific detail (dish, class, coach name) to generate Line 1.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Message generated", description: "Review, edit, then copy & open Instagram." });
+      }
     } catch (e) {
       toast({
         title: "Generation failed",
@@ -1198,7 +1215,7 @@ function MessageDialog({
   };
 
   const copyAndOpen = async () => {
-    if (!lead || !message) return;
+    if (!lead || !message || skipped) return;
     try {
       await navigator.clipboard.writeText(message);
       setCopied(true);
@@ -1209,7 +1226,6 @@ function MessageDialog({
       });
       setTimeout(() => setCopied(false), 3000);
     } catch {
-      // Fallback for older browsers
       const textarea = document.createElement("textarea");
       textarea.value = message;
       document.body.appendChild(textarea);
@@ -1220,27 +1236,6 @@ function MessageDialog({
       setCopied(true);
       toast({ title: "Copied! Instagram opened", description: "Paste the message in their DM." });
       setTimeout(() => setCopied(false), 3000);
-    }
-  };
-
-  const saveEdit = async () => {
-    if (!lead) return;
-    try {
-      const res = await fetch(`/api/leads/${lead.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: lead.notes, message }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      if (data.lead) onUpdated(data.lead);
-      toast({ title: "Message saved" });
-    } catch (e) {
-      toast({
-        title: "Save failed",
-        description: e instanceof Error ? e.message : "Unknown error",
-        variant: "destructive",
-      });
     }
   };
 
@@ -1273,7 +1268,32 @@ function MessageDialog({
         </DialogHeader>
 
         <div className="grid gap-3 py-2">
-          {message ? (
+          {/* Detail input — for Line 1 personalization */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="detail" className="text-xs font-medium flex items-center gap-1.5">
+              <Sparkles className="size-3 text-amber-500" />
+              Specific detail for Line 1
+            </Label>
+            <Input
+              id="detail"
+              value={detail}
+              onChange={(e) => setDetail(e.target.value)}
+              placeholder="e.g. their kids BJJ program, coach Brad, the paella, 2 boxing rings"
+              className="text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Check their Instagram for 60-90 seconds. Find ONE specific thing. If left blank and nothing is in notes, the message will be skipped.
+            </p>
+          </div>
+
+          {skipped ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 p-4 text-center">
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">SKIP — needs manual detail</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                No specific detail was found in the notes. Add one above (check their Instagram for 60-90 seconds), then click Generate.
+              </p>
+            </div>
+          ) : message ? (
             <>
               <div className="relative">
                 <Textarea
@@ -1307,9 +1327,29 @@ function MessageDialog({
                   )}
                   Regenerate
                 </Button>
-                <Button variant="ghost" size="sm" onClick={saveEdit} className="text-xs">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    if (!lead) return;
+                    try {
+                      const res = await fetch(`/api/leads/${lead.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ detail, message }),
+                      });
+                      const data = await res.json();
+                      if (data.error) throw new Error(data.error);
+                      if (data.lead) onUpdated(data.lead);
+                      toast({ title: "Saved" });
+                    } catch (e) {
+                      toast({ title: "Save failed", description: e instanceof Error ? e.message : "error", variant: "destructive" });
+                    }
+                  }}
+                  className="text-xs"
+                >
                   <Pencil className="size-3.5" />
-                  Save edits
+                  Save
                 </Button>
               </div>
 
@@ -1337,26 +1377,26 @@ function MessageDialog({
               </p>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center text-center py-8 gap-4">
+            <div className="flex flex-col items-center justify-center text-center py-6 gap-3">
               <div className="size-12 rounded-xl bg-gradient-to-br from-rose-500/15 to-orange-500/15 flex items-center justify-center">
                 <MessageCircle className="size-6 text-rose-500" />
               </div>
               <div>
                 <p className="font-medium text-sm">No message yet</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Generate a personalized cold DM using AI. It reads the gym&apos;s name, city, and discipline to write a unique opening line — no generic &ldquo;I came across your gym&rdquo;.
+                  Add a specific detail above (or leave blank to auto-extract from notes), then generate.
                 </p>
               </div>
               <Button onClick={generate} disabled={generating} className="bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white">
                 {generating ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    Writing your DM…
+                    Generating…
                   </>
                 ) : (
                   <>
                     <Wand2 className="size-4" />
-                    Generate personalized DM
+                    Generate DM
                   </>
                 )}
               </Button>

@@ -8,12 +8,13 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { status, priority, notes, message, followUpAt, botDeployed, hasWebsite, reservationSystem } = body;
+    const { status, priority, notes, detail, message, followUpAt, botDeployed, hasWebsite, reservationSystem } = body;
 
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
     if (priority !== undefined) data.priority = priority;
     if (notes !== undefined) data.notes = notes;
+    if (detail !== undefined) data.detail = detail || null;
     if (message !== undefined) data.message = message;
     if (botDeployed !== undefined) data.botDeployed = botDeployed;
     if (hasWebsite !== undefined) data.hasWebsite = hasWebsite;
