@@ -1519,7 +1519,7 @@ function MessageDialog({
                 </p>
               </div>
               <Button
-                onClick={generate}
+                onClick={() => generate(false)}
                 disabled={generating}
                 className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
               >

@@ -1387,7 +1387,7 @@ function MessageDialog({
                   Add a specific detail above (or leave blank to auto-extract from notes), then generate.
                 </p>
               </div>
-              <Button onClick={generate} disabled={generating} className="bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white">
+              <Button onClick={() => generate(false)} disabled={generating} className="bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white">
                 {generating ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
