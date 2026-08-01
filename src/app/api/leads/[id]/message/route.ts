@@ -97,19 +97,26 @@ export async function POST(
       );
     }
 
-    // Save the message and fetch the updated lead as a plain object
+    // Save the message and fetch the updated lead
     const updated = await db.gymLead.update({
       where: { id },
       data: { message },
     });
 
-    return NextResponse.json({
+    // Build response as a plain object to avoid any serialization issues
+    const responseBody = {
       lead: serializeLead(updated),
       message,
       skipped: message === SKIP_MESSAGE,
-    });
+    };
+
+    return NextResponse.json(responseBody);
   } catch (e) {
-    console.error("POST /api/leads/[id]/message error", e);
-    return NextResponse.json({ error: "Failed to generate message" }, { status: 500 });
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    console.error("POST /api/leads/[id]/message error:", errorMsg);
+    return NextResponse.json(
+      { error: errorMsg.slice(0, 200) },
+      { status: 500 }
+    );
   }
 }

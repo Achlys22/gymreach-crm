@@ -107,13 +107,19 @@ export async function POST(
       data: { message },
     });
 
-    return NextResponse.json({
+    const responseBody = {
       lead: serializeLead(updated),
       message,
       skipped: message === SKIP_MESSAGE,
-    });
+    };
+
+    return NextResponse.json(responseBody);
   } catch (e) {
-    console.error("POST /api/restaurants/[id]/message error", e);
-    return NextResponse.json({ error: "Failed to generate message" }, { status: 500 });
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    console.error("POST /api/restaurants/[id]/message error:", errorMsg);
+    return NextResponse.json(
+      { error: errorMsg.slice(0, 200) },
+      { status: 500 }
+    );
   }
 }
