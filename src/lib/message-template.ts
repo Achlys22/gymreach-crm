@@ -36,7 +36,10 @@ function primaryDiscipline(lead: LeadInfo): string {
   return d[0];
 }
 
-// LINE 1 — Hook. Uses specific detail or SKIPs.
+// LINE 1 — Hook. Three tiers:
+//   1. Manual detail (best — personalized)
+//   2. Auto-extracted detail from notes (good — specific)
+//   3. Honest volume opener (decent — references real data, no fake personalization)
 function buildHook(lead: LeadInfo): string {
   // Priority 1: manually-set detail
   if (lead.detail && lead.detail.trim().length > 2) {
@@ -49,8 +52,29 @@ function buildHook(lead: LeadInfo): string {
     return buildHookWithDetail(lead.name, extracted.detail, "gym");
   }
 
-  // No specific detail found — SKIP
-  return SKIP_MESSAGE;
+  // Priority 3: honest volume opener — references real data (city + discipline)
+  // Does NOT pretend to have looked at their posts. Honest and specific enough.
+  return buildVolumeHook(lead);
+}
+
+// Honest volume opener — uses real data (discipline + city) without
+// pretending to have researched their Instagram. Better than filler
+// like "standout spot" because it's truthful.
+function buildVolumeHook(lead: LeadInfo, seed: number = 0): string {
+  const disc = primaryDiscipline(lead);
+  const city = lead.city || "the UK";
+  const name = lead.name;
+
+  const hooks: string[] = [
+    `Reaching out to ${disc} gyms in ${city}. Quick one about ${name}.`,
+    `Saw ${name} listed as a ${disc} gym in ${city}. Quick question.`,
+    `Reaching out — ${name}, ${disc} in ${city}.`,
+    `Quick one about ${name}. ${disc} gym in ${city}, right?`,
+    `Reaching out to ${disc} spots in ${city}. ${name} came up.`,
+    `Saw ${name} in ${city}. ${disc} gym — quick question.`,
+  ];
+  const h = hashString(lead.instagram + seed);
+  return hooks[Math.abs(h) % hooks.length];
 }
 
 // LINE 2 — Pain. ONE rhetorical question + soft general problem. Loss-framed.
@@ -129,14 +153,8 @@ function hashString(s: string): number {
 }
 
 export function generateMessage(lead: LeadInfo, variant?: number): string {
-  const hook = buildHook(lead);
-
-  // If no specific detail found, return SKIP
-  if (hook === SKIP_MESSAGE) {
-    return SKIP_MESSAGE;
-  }
-
   const seed = hashString(lead.instagram + (lead.name || "")) + (variant ?? 0);
+  const hook = buildHook(lead);
   const pain = buildPain(lead, Math.floor(seed / 7));
   const solution = buildSolution(Math.floor(seed / 13));
   const close = buildClose(lead, Math.floor(seed / 19));

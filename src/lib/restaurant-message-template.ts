@@ -20,7 +20,10 @@ interface RestaurantInfo {
 
 export const SKIP_MESSAGE = "SKIP — needs manual detail";
 
-// LINE 1 — Hook. Uses specific detail or SKIPs.
+// LINE 1 — Hook. Three tiers (same as gym):
+//   1. Manual detail (best)
+//   2. Auto-extracted detail from notes (good)
+//   3. Honest volume opener (decent — references city + cuisine)
 function buildHook(r: RestaurantInfo): string {
   // Priority 1: manually-set detail
   if (r.detail && r.detail.trim().length > 2) {
@@ -33,7 +36,27 @@ function buildHook(r: RestaurantInfo): string {
     return buildHookWithDetail(r.name, extracted.detail, "restaurant");
   }
 
-  return SKIP_MESSAGE;
+  // Priority 3: honest volume opener
+  return buildVolumeHook(r);
+}
+
+// Honest volume opener — references real data (cuisine + city) without
+// pretending to have researched their Instagram.
+function buildVolumeHook(r: RestaurantInfo): string {
+  const cuisine = r.cuisine || "restaurant";
+  const city = r.city || "the UK";
+  const name = r.name;
+
+  const hooks: string[] = [
+    `Reaching out to ${cuisine} spots in ${city}. Quick one about ${name}.`,
+    `Saw ${name} listed as a ${cuisine} restaurant in ${city}. Quick question.`,
+    `Reaching out — ${name}, ${cuisine} in ${city}.`,
+    `Quick one about ${name}. ${cuisine} place in ${city}, right?`,
+    `Reaching out to ${cuisine} restaurants in ${city}. ${name} came up.`,
+    `Saw ${name} in ${city}. ${cuisine} spot — quick question.`,
+  ];
+  const h = hashString((r.instagram || r.name) + name);
+  return hooks[Math.abs(h) % hooks.length];
 }
 
 // LINE 2 — Pain. ONE rhetorical question + soft general problem. Loss-framed.
@@ -103,13 +126,8 @@ function hashString(s: string): number {
 }
 
 export function generateRestaurantMessage(r: RestaurantInfo, variant?: number): string {
-  const hook = buildHook(r);
-
-  if (hook === SKIP_MESSAGE) {
-    return SKIP_MESSAGE;
-  }
-
   const seed = hashString((r.instagram || r.name) + r.name) + (variant ?? 0);
+  const hook = buildHook(r);
   const pain = buildPain(Math.floor(seed / 7));
   const solution = buildSolution(Math.floor(seed / 13));
   const close = buildClose(Math.floor(seed / 19));
