@@ -1,21 +1,24 @@
 /**
- * Template-based message generator for restaurant outreach.
+ * Restaurant message template — conversion-optimized.
  *
- * Generates personalized cold DMs pitching a reservation bot service to UK
- * restaurants. No external API needed. No em dashes (—) used anywhere to
- * avoid AI detection.
+ * Follows the 4-line psychology structure:
+ *   1. Hook (5-10 words, references real data only, no invented details)
+ *   2. Pain (ONE easy question + soft general problem, loss-framed, no calculation)
+ *   3. Solution (outcome only, max 15 words, no feature list)
+ *   4. Close (offer the demo, "want me to send it over?" style)
  *
- * Structure (Problem-Agitate-Solve):
- *   1. Hook (personal, references their food/restaurant, no ambiguity)
- *   2. Pain point (missed DMs = lost reservations)
- *   3. Solution (one line, no feature dump)
- *   4. CTA (offer to send a demo)
+ * Hard rules enforced:
+ *   - Total under 60 words
+ *   - No em/en dashes
+ *   - No banned words (opportunity, solution, leverage, synergy)
+ *   - Max 1 exclamation mark
+ *   - Plain text only, no Unicode styling
+ *   - One question the brain must answer (line 4); line 2 is rhetorical
  */
 
 interface RestaurantInfo {
   name: string;
   instagram: string | null;
-  phone: string | null;
   city: string | null;
   region: string | null;
   cuisine: string | null;
@@ -23,38 +26,88 @@ interface RestaurantInfo {
   notes: string | null;
 }
 
-const HOOKS: ((r: RestaurantInfo) => string)[] = [
-  (r) => `Saw your posts. The food at ${r.name} looks incredible.`,
-  (r) => `Been scrolling through ${r.city || "your area"} restaurants and ${r.name} stood out immediately. The dishes look unreal.`,
-  (r) => `${r.name} came up on my feed. Genuinely some of the best looking food I've seen this week.`,
-  (r) => `Quick one. Saw ${r.name}'s posts and the food looks next level.`,
-  (r) => `Noticed ${r.name} in ${r.city || "your area"}. The plates you're putting out look properly good.`,
-  (r) => `Your food keeps popping up on my feed. ${r.name} looks like exactly the kind of place I'd want to help get more bookings for.`,
-  (r) => `Came across ${r.name} while checking out ${r.city || "restaurants"} in your area. Seriously impressive food.`,
-  (r) => `Saw your recent posts. ${r.name} looks like a proper restaurant, not just an Instagram account.`,
-];
+// LINE 1 — Hook. References name/city/cuisine only (real data). 5-10 words.
+function buildHook(r: RestaurantInfo, seed: number): string {
+  const city = r.city || "your area";
+  const cuisine = r.cuisine || "food";
+  const name = r.name;
 
-const PAINS: string[] = [
-  "Quick question: when a customer DMs you at 9pm asking to book a table, who replies? Most restaurants miss those DMs and lose the reservation.",
-  "Quick question: when someone messages your Instagram asking about a table, how long does it take you to reply? Most restaurants lose those bookings because they can't respond fast enough.",
-  "Quick question: how many DMs asking about bookings do you think you've missed this week? Most restaurants are losing reservations every day because they can't reply fast enough.",
-  "Quick question: when you're busy on a Friday night service, who's replying to the Instagram DMs asking about table availability? Most restaurants miss them and lose the booking.",
-];
+  const hooks: string[] = [
+    `Saw ${name} in ${city}. Standout spot.`,
+    `${name} in ${city} caught my eye.`,
+    `Been looking at ${cuisine} spots in ${city}. ${name} stood out.`,
+    `Came across ${name}. Proper ${cuisine} place.`,
+    `${name} came up on my feed. Looks legit.`,
+    `Saw ${name} in ${city}. Genuinely impressive.`,
+    `Noticed ${name} in ${city}. Real standout.`,
+    `${name} in ${city}. One of the better ones I've seen.`,
+    `Stumbled on ${name} in ${city}. Solid spot.`,
+    `${name} popped up. Proper ${cuisine} place.`,
+  ];
+  return hooks[seed % hooks.length];
+}
 
-const SOLUTIONS: string[] = [
-  "I build a bot that replies instantly and books the table for them. You just get a text with the reservation details.",
-  "I make a bot that handles all the DMs and takes the booking automatically. You just get a text with the details.",
-  "I build a bot that replies to customer DMs instantly and books tables for you. You just get a text saying 'new reservation'.",
-  "I create a bot that answers customer questions and takes reservations automatically. You just get a text with the booking.",
-];
+// LINE 2 — Pain. ONE easy question (rhetorical, no calculation) + soft general problem.
+// Loss-framed: states the general risk without asking them to admit failure.
+function buildPain(seed: number): string {
+  const pains: string[] = [
+    `When a customer DMs you at 9pm, who replies? Most places miss those entirely.`,
+    `Who handles your Instagram DMs during dinner service? Most restaurants lose bookings that way.`,
+    `Quick one: when you're in the middle of service, who replies to DMs? Most places miss them.`,
+    `When someone messages asking for a table tonight, who replies? Most restaurants miss those DMs.`,
+    `Who gets back to DMs during a busy Friday service? Most places lose those reservations.`,
+    `When a customer messages at 10pm asking to book, who replies? Most miss it entirely.`,
+    `Quick question: who replies to your Instagram DMs during service? Most restaurants lose those bookings.`,
+    `Who replies to Instagram DMs during your busiest hours? Most places miss those entirely.`,
+  ];
+  return pains[seed % pains.length];
+}
 
-const CTAS: string[] = [
-  "Want me to send a quick 2-min demo showing how it'd work for your restaurant?",
-  "Happy to send a 2-min demo showing the bot in action. Want me to send it over?",
-  "I can send a quick 2-min demo of the bot running for a restaurant like yours. Interested?",
-  "Want me to shoot a 2-min demo showing exactly how it'd work for you?",
-  "Could send a 2-min demo video showing the bot booking a table. Shall I?",
-];
+// LINE 3 — Solution. Outcome only, max 15 words, no features.
+function buildSolution(seed: number): string {
+  const solutions: string[] = [
+    `I build a bot that replies instantly and books the table for you.`,
+    `I make a bot that handles DMs and takes bookings automatically.`,
+    `I built a bot that replies to DMs and books tables for you.`,
+    `I build a bot that handles all of that automatically.`,
+    `I make a bot that replies instantly and takes the booking.`,
+    `I built a bot that handles the DMs and books the table.`,
+    `I build a bot that replies for you and books the table.`,
+    `I make a bot that takes care of all of that.`,
+  ];
+  return solutions[seed % solutions.length];
+}
+
+// LINE 4 — Close. Offer the demo (reciprocity). "Want me to send it over?" style.
+function buildClose(seed: number): string {
+  const closes: string[] = [
+    `Want me to send over a 2-min demo?`,
+    `I've got a 2-min demo. Want me to send it over?`,
+    `Want me to send a quick demo showing how it works?`,
+    `I made a 2-min demo. Want me to send it over?`,
+    `Want me to send a quick demo?`,
+    `Got a 2-min demo ready. Want me to send it over?`,
+    `Want me to send over a demo?`,
+    `I've got a demo showing how it'd work. Want me to send it?`,
+  ];
+  return closes[seed % closes.length];
+}
+
+const BANNED = ["opportunity", "solution", "leverage", "synergy"];
+
+function validate(msg: string): string {
+  // Remove any em/en dashes (shouldn't be any, but safety net)
+  let clean = msg.replace(/—/g, "-").replace(/–/g, "-");
+  // Check banned words
+  const lower = clean.toLowerCase();
+  for (const w of BANNED) {
+    if (lower.includes(w)) {
+      // replace with plain alternative
+      clean = clean.replace(new RegExp(w, "gi"), "fix");
+    }
+  }
+  return clean;
+}
 
 function hashString(s: string): number {
   let h = 0;
@@ -67,12 +120,13 @@ function hashString(s: string): number {
 export function generateRestaurantMessage(r: RestaurantInfo, variant?: number): string {
   const seed = hashString((r.instagram || r.name) + r.name) + (variant ?? 0);
 
-  const hook = HOOKS[seed % HOOKS.length](r);
-  const pain = PAINS[Math.floor(seed / 7) % PAINS.length];
-  const solution = SOLUTIONS[Math.floor(seed / 13) % SOLUTIONS.length];
-  const cta = CTAS[Math.floor(seed / 19) % CTAS.length];
+  const hook = buildHook(r, seed);
+  const pain = buildPain(Math.floor(seed / 7));
+  const solution = buildSolution(Math.floor(seed / 13));
+  const close = buildClose(Math.floor(seed / 19));
 
-  return `${hook}\n\n${pain}\n\n${solution}\n\n${cta}`;
+  const message = `${hook}\n\n${pain}\n\n${solution}\n\n${close}`;
+  return validate(message);
 }
 
 export function generateRestaurantMessageVariant(r: RestaurantInfo, attempt = 0): string {

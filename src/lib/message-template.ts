@@ -1,17 +1,14 @@
 /**
- * Template-based message generator.
+ * Gym message template — conversion-optimized.
  *
- * Generates personalized cold DMs for UK martial arts gyms using a pool of
- * varied opening hooks + offer lines + CTAs. No external API needed — works
- * instantly anywhere (including Railway) with no API key or rate limits.
+ * Same 4-line psychology structure as restaurants:
+ *   1. Hook (5-10 words, references gym name/city/discipline)
+ *   2. Pain (ONE easy question + soft general problem, loss-framed)
+ *   3. Solution (outcome only, max 15 words)
+ *   4. Close (offer a demo, "want me to send it over?" style)
  *
- * Each message is unique per gym because the hook references the gym's
- * specific name, city, and discipline.
- *
- * IMPORTANT: No em dashes (—) or en dashes (–) are used anywhere in the
- * output. AI-generated text often uses em dashes, which Instagram and other
- * platforms can flag as bot-generated. We use periods and commas instead,
- * which look fully human-written.
+ * Gym-specific pain: not showing up when people search locally.
+ * Gym-specific solution: Google Ads that put them at the top.
  */
 
 interface LeadInfo {
@@ -33,54 +30,89 @@ function primaryDiscipline(lead: LeadInfo): string {
   return d[0];
 }
 
-// CTA templates — use %%NAME%% placeholder, replaced at generation time
-// NO em dashes, NO en dashes. Periods and commas only.
-const CTA_TEMPLATES: string[] = [
-  "Want me to send a quick 2-min Loom showing what ads I'd run for %%NAME%% specifically?",
-  "Happy to record a 2-min Loom showing exactly what ads I'd run for you. Want me to send it over?",
-  "I can put together a 2-min Loom showing what your ad campaign would look like. Shall I send it?",
-  "Could record a quick 2-min Loom showing what I'd actually run for your gym. Interested?",
-  "Want me to shoot a quick 2-min Loom showing what I'd run for your gym specifically?",
-];
-
+// LINE 1 — Hook. 5-10 words, references name/city/discipline.
 function buildHook(lead: LeadInfo, seed: number): string {
-  const disc = primaryDiscipline(lead);
   const city = lead.city || "the UK";
+  const disc = primaryDiscipline(lead);
   const name = lead.name;
 
   const hooks: string[] = [
-    `Saw ${name} popping up in ${city}. Your ${disc} setup looks legit.`,
-    `${city} ${disc} scene is stacked, but ${name} stood out when I was looking through gyms in the area.`,
-    `Quick one. Been looking at ${disc} gyms in ${city} and ${name} caught my eye.`,
-    `${name} came up when I was researching ${disc} gyms in ${city}. Liked what I saw.`,
-    `Noticed ${name} in ${city}. Solid ${disc} program from what I can see.`,
-    `Been digging through ${disc} gyms in ${city} this week and ${name} was one of the few that actually stood out.`,
-    `${city} has a lot of ${disc} gyms, but ${name} looks like it's doing things right.`,
-    `Saw your posts. ${name} looks like a proper ${disc} gym, not one of those fitness-cardio places.`,
-    `Came across ${name} while scoping out ${disc} gyms in ${city}. You've got a real setup, not a cardio-boxing class.`,
-    `Your ${disc} gym in ${city} came up on my radar. ${name} looks like the real deal.`,
+    `Saw ${name} in ${city}. Solid ${disc} setup.`,
+    `${name} in ${city} caught my eye.`,
+    `Been looking at ${disc} gyms in ${city}. ${name} stood out.`,
+    `Came across ${name}. Proper ${disc} gym.`,
+    `${name} came up on my feed. Looks legit.`,
+    `Saw ${name} in ${city}. Genuinely impressive setup.`,
+    `Noticed ${name} in ${city}. Real standout gym.`,
+    `${name} in ${city}. One of the better ones I've seen.`,
+    `Stumbled on ${name} in ${city}. Solid ${disc} place.`,
+    `${name} popped up. Proper ${disc} gym, not a cardio class.`,
   ];
-
   return hooks[seed % hooks.length];
 }
 
-function buildOffer(seed: number): string {
-  const offers: string[] = [
-    "I run Google Ads for martial arts gyms in the UK. I'll run your first month free, you only cover ad spend (around £150-300), no management fee, no contract.",
-    "I do Google Ads for UK martial arts gyms. First month is on me, you just cover the ad spend (around £150-300), no management fee, no lock-in contract.",
-    "Quick context: I run Google Ads for MMA, Muay Thai and boxing gyms across the UK. First month free, you only pay the ad spend (around £150-300), no contract, no management fee.",
-    "I help UK martial arts gyms get more members through Google Ads. First month free, you cover ad spend only (around £150-300), no management fee, cancel anytime.",
-    "I run Google Ads specifically for martial arts gyms. Happy to run your first month free, you cover the ad spend (around £150-300), no management fee, no contract to sign.",
+// LINE 2 — Pain. ONE easy question + soft general problem. Loss-framed.
+// Gym pain: people search locally and don't find them.
+function buildPain(lead: LeadInfo, seed: number): string {
+  const disc = primaryDiscipline(lead);
+  const city = lead.city || "your area";
+
+  const pains: string[] = [
+    `When someone searches "${disc} gym near me", do you show up? Most gyms don't rank in the top 3.`,
+    `Quick one: when people search for a ${disc} gym in ${city}, do they find you? Most don't.`,
+    `Who handles your Google ranking? Most gyms don't show up when people search locally.`,
+    `When someone Googles "${disc} gym ${city}", do you come up? Most gyms are buried on page 2.`,
+    `Quick question: when people search for gyms in ${city}, do you show up first? Most don't.`,
+    `Who's making sure you show up when people search for ${disc} locally? Most gyms are invisible.`,
+    `When someone searches for a ${disc} gym near them, do you appear? Most gyms don't rank.`,
+    `Quick one: if I Google "${disc} gym ${city}" right now, do you show up? Most gyms don't.`,
   ];
-  return offers[seed % offers.length];
+  return pains[seed % pains.length];
 }
 
-function buildCta(name: string, seed: number): string {
-  const template = CTA_TEMPLATES[seed % CTA_TEMPLATES.length];
-  return template.replace(/%%NAME%%/g, name);
+// LINE 3 — Solution. Outcome only, max 15 words.
+function buildSolution(seed: number): string {
+  const solutions: string[] = [
+    `I run Google Ads that put you at the top of those searches.`,
+    `I do Google Ads that get you showing up first locally.`,
+    `I run Google Ads that put your gym in front of people searching.`,
+    `I handle Google Ads that get you ranking at the top locally.`,
+    `I run Google Ads so you show up first when people search.`,
+    `I do Google Ads that put you above your competitors locally.`,
+    `I run Google Ads that get you found by people searching nearby.`,
+    `I handle Google Ads so you show up when people search for gyms.`,
+  ];
+  return solutions[seed % solutions.length];
 }
 
-// Simple deterministic hash so the same gym always gets the same message
+// LINE 4 — Close. Offer a demo (reciprocity).
+function buildClose(seed: number): string {
+  const closes: string[] = [
+    `Want me to send over a 2-min demo?`,
+    `I've got a 2-min demo. Want me to send it over?`,
+    `Want me to send a quick demo showing what I'd run for you?`,
+    `I made a 2-min demo. Want me to send it over?`,
+    `Want me to send a quick demo?`,
+    `Got a 2-min demo ready. Want me to send it over?`,
+    `Want me to send over a demo?`,
+    `I've got a demo showing what ads I'd run. Want me to send it?`,
+  ];
+  return closes[seed % closes.length];
+}
+
+const BANNED = ["opportunity", "solution", "leverage", "synergy"];
+
+function validate(msg: string): string {
+  let clean = msg.replace(/—/g, "-").replace(/–/g, "-");
+  const lower = clean.toLowerCase();
+  for (const w of BANNED) {
+    if (lower.includes(w)) {
+      clean = clean.replace(new RegExp(w, "gi"), "work");
+    }
+  }
+  return clean;
+}
+
 function hashString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
@@ -93,15 +125,14 @@ export function generateMessage(lead: LeadInfo, variant?: number): string {
   const seed = hashString(lead.instagram + (lead.name || "")) + (variant ?? 0);
 
   const hook = buildHook(lead, seed);
-  const offer = buildOffer(Math.floor(seed / 7));
-  const cta = buildCta(lead.name, Math.floor(seed / 13));
+  const pain = buildPain(lead, Math.floor(seed / 7));
+  const solution = buildSolution(Math.floor(seed / 13));
+  const close = buildClose(Math.floor(seed / 19));
 
-  const message = `${hook}\n\n${offer}\n\n${cta}`;
-
-  return message;
+  const message = `${hook}\n\n${pain}\n\n${solution}\n\n${close}`;
+  return validate(message);
 }
 
-// Generate a message with a random variant (for "Regenerate" button)
 export function generateMessageVariant(lead: LeadInfo, attempt = 0): string {
   return generateMessage(lead, attempt + (Date.now() % 1000));
 }
