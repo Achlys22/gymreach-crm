@@ -94,17 +94,20 @@ function buildPain(lead: LeadInfo, seed: number): string {
   return pains[seed % pains.length];
 }
 
-// LINE 3 — Solution. Outcome only, max 15 words.
+// LINE 3 — Solution + OFFER. This is the conversion engine.
+// Does two jobs in one sentence: explains what you do AND removes the risk.
+// The offer (first month free, ~£150-300, no contract) is what actually
+// converts "huh, interesting" into "sure, worth a shot."
 function buildSolution(seed: number): string {
   const solutions: string[] = [
-    `I run Google Ads that put you at the top of those searches.`,
-    `I do Google Ads that get you showing up first locally.`,
-    `I run Google Ads that put your gym in front of people searching.`,
-    `I handle Google Ads that get you ranking at the top locally.`,
-    `I run Google Ads so you show up first when people search.`,
-    `I do Google Ads that put you above your competitors locally.`,
-    `I run Google Ads that get you found by people searching nearby.`,
-    `I handle Google Ads so you show up when people search for gyms.`,
+    `I run Google Ads for gyms. First month free, you only cover ad spend (around £150-300), no contract.`,
+    `I do Google Ads for martial arts gyms. First month free, you cover ad spend only (around £150-300), no contract.`,
+    `I run Google Ads for gyms like yours. First month free, you just cover ad spend (around £150-300), no contract.`,
+    `I handle Google Ads for gyms. First month free, you only pay ad spend (around £150-300), no contract.`,
+    `I run Google Ads for martial arts gyms. First month free, ad spend only (around £150-300), no contract.`,
+    `I do Google Ads for gyms. First month free, you cover ad spend (around £150-300), no contract.`,
+    `I run Google Ads that get you ranking. First month free, you cover ad spend only (around £150-300), no contract.`,
+    `I handle Google Ads for gyms like yours. First month free, ad spend only (around £150-300), no contract.`,
   ];
   return solutions[seed % solutions.length];
 }
