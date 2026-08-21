@@ -1,0 +1,7 @@
+{
+  "niche": "dentists",
+  "country": "UK",
+  "cities": ["London", "Manchester", "Birmingham", "Leeds", "Bristol", "Edinburgh", "Glasgow", "Brighton", "Liverpool", "Newcastle"],
+  "extract": ["instagram", "email", "phone"],
+  "maxQueries": 80
+}

@@ -1,0 +1,7 @@
+{
+  "niche": "yoga studios",
+  "country": "USA",
+  "cities": ["New York", "Los Angeles", "Chicago", "Austin", "Seattle", "Miami", "San Francisco", "Boston"],
+  "extract": ["instagram", "email", "phone"],
+  "maxQueries": 80
+}

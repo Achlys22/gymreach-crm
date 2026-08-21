@@ -1,0 +1,8 @@
+{
+  "niche": "restaurants",
+  "country": "Spain",
+  "cities": ["Madrid", "Barcelona", "Valencia", "Seville", "Bilbao", "Malaga"],
+  "extract": ["instagram", "email", "phone"],
+  "languages": ["es", "en"],
+  "maxQueries": 60
+}

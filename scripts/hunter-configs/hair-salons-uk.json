@@ -1,0 +1,7 @@
+{
+  "niche": "hair salons",
+  "country": "UK",
+  "cities": ["London", "Manchester", "Birmingham", "Leeds", "Bristol", "Edinburgh", "Brighton", "Liverpool"],
+  "extract": ["instagram", "email", "phone"],
+  "maxQueries": 80
+}

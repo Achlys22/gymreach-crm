@@ -1,0 +1,8 @@
+{
+  "niche": "cafes",
+  "country": "Germany",
+  "cities": ["Berlin", "Munich", "Hamburg", "Cologne", "Frankfurt", "Stuttgart"],
+  "extract": ["instagram", "email", "phone"],
+  "languages": ["de", "en"],
+  "maxQueries": 60
+}

@@ -1,0 +1,7 @@
+{
+  "niche": "plumbers",
+  "country": "UK",
+  "cities": ["London", "Manchester", "Birmingham", "Leeds", "Bristol", "Glasgow", "Cardiff", "Belfast"],
+  "extract": ["instagram", "email", "phone"],
+  "maxQueries": 60
+}
