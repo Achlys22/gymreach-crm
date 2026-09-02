@@ -1,12 +1,12 @@
 VERIFIED SCANDINAVIAN GYM LEADS
 Every handle confirmed via Instagram URL in web search results
-Total: 107 verified leads
+Total: 111 verified leads
 Generated: 2026-08-02
 ============================================================
 
 
 ============================================================
-DENMARK (47 verified leads)
+DENMARK (51 verified leads)
 ============================================================
 
 Aalborg Martial Arts
@@ -52,6 +52,8 @@ Copenhagen Jiu-Jitsu Camp
 Copenhagen Muay Thai
   IG: @copenhagen_muay_thai
   URL: https://instagram.com/copenhagen_muay_thai
+  City: Copenhagen
+  Discipline: Muay Thai
   Status: VERIFIED
 
 Copenhagen open BJJ gi & nogi
@@ -112,6 +114,13 @@ Golden Thaiboxing
   URL: https://instagram.com/goldenthaiboxing
   City: Roskilde
   Discipline: boxing
+  Status: VERIFIED
+
+Great Danes Fight Club | Kampsport i Odense
+  IG: @greatdanesfightclub
+  URL: https://instagram.com/greatdanesfightclub
+  City: Odense
+  Discipline: BJJ
   Status: VERIFIED
 
 Great to make it to Denmark.. Will be here a for a few weeks
@@ -206,6 +215,13 @@ Nordic SFC
   Discipline: BJJ
   Status: VERIFIED
 
+Odense Bushido Klub
+  IG: @teambushido_odense
+  URL: https://instagram.com/teambushido_odense
+  City: Odense
+  Discipline: BJJ
+  Status: VERIFIED
+
 Odense Muay Thai
   IG: @odensemuaythai
   URL: https://instagram.com/odensemuaythai
@@ -290,6 +306,20 @@ fight.team.kolding
   IG: @fight.team.kolding
   URL: https://instagram.com/fight.team.kolding
   City: Kolding
+  Discipline: BJJ
+  Status: VERIFIED
+
+killbox jiu-jitsu
+  IG: @killboxjiujitsu
+  URL: https://instagram.com/killboxjiujitsu
+  City: Horsens
+  Discipline: BJJ
+  Status: VERIFIED
+
+odense.submission.fighting
+  IG: @odense.submission.fighting
+  URL: https://instagram.com/odense.submission.fighting
+  City: Odense
   Discipline: BJJ
   Status: VERIFIED
 
