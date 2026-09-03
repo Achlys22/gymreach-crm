@@ -5,6 +5,7 @@ export interface RestaurantLead {
   phone: string | null;
   city: string | null;
   region: string | null;
+  country: string | null;
   cuisine: string | null;
   hasWebsite: boolean;
   reservationSystem: string | null;

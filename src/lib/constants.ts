@@ -26,6 +26,13 @@ export const REGIONS = [
   "Ireland",
 ] as const;
 
+export const COUNTRIES = [
+  "UK",
+  "Denmark",
+  "Norway",
+  "Sweden",
+] as const;
+
 export const DISCIPLINES = ["MMA", "Muay Thai", "Boxing", "BJJ", "Kickboxing", "Wrestling"] as const;
 
 export const STATUS_META: Record<

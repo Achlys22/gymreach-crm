@@ -4,6 +4,7 @@ export interface GymLead {
   instagram: string;
   city: string | null;
   region: string | null;
+  country: string | null;
   disciplines: string;
   status: string;
   priority: string;

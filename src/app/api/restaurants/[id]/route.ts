@@ -4,7 +4,7 @@ import type { RestaurantLead } from "@/lib/restaurant-types";
 
 function serializeLead(l: {
   id: string; name: string; instagram: string | null; phone: string | null;
-  city: string | null; region: string | null; cuisine: string | null;
+  city: string | null; region: string | null; country: string | null; cuisine: string | null;
   hasWebsite: boolean; reservationSystem: string | null; botDeployed: boolean;
   status: string; priority: string; notes: string | null; detail: string | null;
   message: string | null; followUpAt: Date | null; contactedAt: Date | null;
@@ -12,7 +12,7 @@ function serializeLead(l: {
 }): RestaurantLead {
   return {
     id: l.id, name: l.name, instagram: l.instagram, phone: l.phone,
-    city: l.city, region: l.region, cuisine: l.cuisine,
+    city: l.city, region: l.region, country: l.country, cuisine: l.cuisine,
     hasWebsite: l.hasWebsite, reservationSystem: l.reservationSystem,
     botDeployed: l.botDeployed, status: l.status, priority: l.priority,
     notes: l.notes, detail: l.detail, message: l.message,
@@ -29,13 +29,14 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { status, priority, notes, detail, message, followUpAt, botDeployed, hasWebsite, reservationSystem } = body;
+    const { status, priority, notes, detail, country, message, followUpAt, botDeployed, hasWebsite, reservationSystem } = body;
 
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
     if (priority !== undefined) data.priority = priority;
     if (notes !== undefined) data.notes = notes;
     if (detail !== undefined) data.detail = detail || null;
+    if (country !== undefined) data.country = country || null;
     if (message !== undefined) data.message = message;
     if (botDeployed !== undefined) data.botDeployed = botDeployed;
     if (hasWebsite !== undefined) data.hasWebsite = hasWebsite;

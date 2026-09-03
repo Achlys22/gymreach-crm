@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const region = searchParams.get("region");
+    const country = searchParams.get("country");
     const discipline = searchParams.get("discipline");
     const priority = searchParams.get("priority");
     const q = searchParams.get("q")?.trim();
@@ -13,12 +14,14 @@ export async function GET(req: NextRequest) {
     const where: {
       status?: string;
       region?: string;
+      country?: string;
       priority?: string;
       AND?: { OR: { contains: string }[] }[];
     } = {};
 
     if (status && status !== "all") where.status = status;
     if (region && region !== "all") where.region = region;
+    if (country && country !== "all") where.country = country;
     if (priority && priority !== "all") where.priority = priority;
 
     if (q) {
@@ -76,7 +79,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, instagram, city, region, disciplines, priority, notes } = body;
+    const { name, instagram, city, region, country, disciplines, priority, notes } = body;
 
     if (!name || !instagram) {
       return NextResponse.json({ error: "name and instagram are required" }, { status: 400 });
@@ -90,6 +93,7 @@ export async function POST(req: NextRequest) {
         instagram: handle,
         city: city?.trim() || null,
         region: region || null,
+        country: country || "UK",
         disciplines: disciplines || "",
         priority: priority || "medium",
         notes: notes || null,

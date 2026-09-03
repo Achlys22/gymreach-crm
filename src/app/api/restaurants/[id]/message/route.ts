@@ -22,6 +22,7 @@ function serializeLead(l: {
   phone: string | null;
   city: string | null;
   region: string | null;
+  country: string | null;
   cuisine: string | null;
   hasWebsite: boolean;
   reservationSystem: string | null;
@@ -43,6 +44,7 @@ function serializeLead(l: {
     phone: l.phone,
     city: l.city,
     region: l.region,
+    country: l.country,
     cuisine: l.cuisine,
     hasWebsite: l.hasWebsite,
     reservationSystem: l.reservationSystem,

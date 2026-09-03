@@ -17,6 +17,7 @@ interface BackupGymLead {
   instagram: string;
   city: string | null;
   region: string | null;
+  country: string | null;
   disciplines: string;
   status: string;
   priority: string;
@@ -33,6 +34,7 @@ interface BackupRestaurantLead {
   phone: string | null;
   city: string | null;
   region: string | null;
+  country: string | null;
   cuisine: string | null;
   hasWebsite: boolean;
   reservationSystem: string | null;
@@ -82,6 +84,7 @@ async function main() {
           instagram: lead.instagram,
           city: lead.city,
           region: lead.region,
+          country: lead.country || "UK",
           disciplines: lead.disciplines,
           status: lead.status,
           priority: lead.priority,
@@ -129,6 +132,7 @@ async function main() {
           phone: lead.phone,
           city: lead.city,
           region: lead.region,
+          country: lead.country || "UK",
           cuisine: lead.cuisine,
           hasWebsite: lead.hasWebsite ?? false,
           reservationSystem: lead.reservationSystem,

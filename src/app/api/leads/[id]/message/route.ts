@@ -21,6 +21,7 @@ function serializeLead(l: {
   instagram: string;
   city: string | null;
   region: string | null;
+  country: string | null;
   disciplines: string;
   status: string;
   priority: string;
@@ -38,6 +39,7 @@ function serializeLead(l: {
     instagram: l.instagram,
     city: l.city,
     region: l.region,
+    country: l.country,
     disciplines: l.disciplines,
     status: l.status,
     priority: l.priority,

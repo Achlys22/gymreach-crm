@@ -4,13 +4,13 @@ import type { GymLead } from "@/lib/types";
 
 function serializeLead(l: {
   id: string; name: string; instagram: string; city: string | null;
-  region: string | null; disciplines: string; status: string; priority: string;
+  region: string | null; country: string | null; disciplines: string; status: string; priority: string;
   notes: string | null; detail: string | null; message: string | null;
   followUpAt: Date | null; contactedAt: Date | null; createdAt: Date; updatedAt: Date;
 }): GymLead {
   return {
     id: l.id, name: l.name, instagram: l.instagram, city: l.city,
-    region: l.region, disciplines: l.disciplines, status: l.status, priority: l.priority,
+    region: l.region, country: l.country, disciplines: l.disciplines, status: l.status, priority: l.priority,
     notes: l.notes, detail: l.detail, message: l.message,
     followUpAt: l.followUpAt?.toISOString() ?? null,
     contactedAt: l.contactedAt?.toISOString() ?? null,
@@ -25,13 +25,14 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { status, priority, notes, detail, message, followUpAt } = body;
+    const { status, priority, notes, detail, country, message, followUpAt } = body;
 
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
     if (priority !== undefined) data.priority = priority;
     if (notes !== undefined) data.notes = notes;
     if (detail !== undefined) data.detail = detail || null;
+    if (country !== undefined) data.country = country || null;
     if (message !== undefined) data.message = message;
     if (followUpAt !== undefined) data.followUpAt = followUpAt ? new Date(followUpAt) : null;
 

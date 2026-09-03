@@ -72,6 +72,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   LEAD_STATUSES,
   REGIONS,
+  COUNTRIES,
   DISCIPLINES,
   LEAD_PRIORITIES,
   STATUS_META,
@@ -98,6 +99,7 @@ export default function Home() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
+  const [countryFilter, setCountryFilter] = useState("all");
   const [disciplineFilter, setDisciplineFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
 
@@ -126,6 +128,7 @@ export default function Home() {
       if (q) params.set("q", q);
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (regionFilter !== "all") params.set("region", regionFilter);
+      if (countryFilter !== "all") params.set("country", countryFilter);
       if (disciplineFilter !== "all") params.set("discipline", disciplineFilter);
       if (priorityFilter !== "all") params.set("priority", priorityFilter);
       const res = await fetch(`/api/leads?${params.toString()}`);
@@ -136,7 +139,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [q, statusFilter, regionFilter, disciplineFilter, priorityFilter, toast]);
+  }, [q, statusFilter, regionFilter, countryFilter, disciplineFilter, priorityFilter, toast]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -329,6 +332,7 @@ export default function Home() {
     setQ("");
     setStatusFilter("all");
     setRegionFilter("all");
+    setCountryFilter("all");
     setDisciplineFilter("all");
     setPriorityFilter("all");
     setVerifiedOnly(false);
@@ -336,7 +340,7 @@ export default function Home() {
   };
 
   const hasFilters =
-    q || statusFilter !== "all" || regionFilter !== "all" || disciplineFilter !== "all" || priorityFilter !== "all" || verifiedOnly;
+    q || statusFilter !== "all" || regionFilter !== "all" || countryFilter !== "all" || disciplineFilter !== "all" || priorityFilter !== "all" || verifiedOnly;
 
   // apply verified-only filter client-side (medium/high priority = verified)
   const displayLeads = useMemo(() => {
@@ -350,7 +354,7 @@ export default function Home() {
   const paginatedLeads = displayLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // reset page when filters change
-  useEffect(() => { setPage(1); }, [q, statusFilter, regionFilter, disciplineFilter, priorityFilter, verifiedOnly]);
+  useEffect(() => { setPage(1); }, [q, statusFilter, regionFilter, countryFilter, disciplineFilter, priorityFilter, verifiedOnly]);
 
   // response rate
   const responseRate = useMemo(() => {
@@ -536,6 +540,19 @@ export default function Home() {
                     {REGIONS.map((r) => (
                       <SelectItem key={r} value={r}>
                         {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={countryFilter} onValueChange={setCountryFilter}>
+                  <SelectTrigger className="w-full md:w-[120px]">
+                    <SelectValue placeholder="Country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All countries</SelectItem>
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -792,7 +809,7 @@ function LeadRow({
           <MapPin className="size-3.5 text-muted-foreground" />
           <span>{lead.city ?? "—"}</span>
         </div>
-        <div className="text-xs text-muted-foreground ml-5">{lead.region ?? ""}</div>
+        <div className="text-xs text-muted-foreground ml-5">{lead.region ?? ""}{lead.country ? ` · ${lead.country}` : ""}</div>
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap gap-1">

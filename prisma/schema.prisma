@@ -16,6 +16,7 @@ model GymLead {
   instagram   String    @unique
   city        String?
   region      String?
+  country     String?   // UK, Denmark, Norway, Sweden, etc.
   disciplines String    // comma-separated: MMA,Muay Thai,Boxing
   status      String    @default("new") // new, contacted, replied, interested, won, lost
   priority    String    @default("medium") // low, medium, high
@@ -29,6 +30,7 @@ model GymLead {
 
   @@index([status])
   @@index([region])
+  @@index([country])
 }
 
 model RestaurantLead {
@@ -38,6 +40,7 @@ model RestaurantLead {
   phone            String?
   city             String?
   region           String?
+  country          String?   // UK, Denmark, Norway, Sweden, etc.
   cuisine          String?   // Italian, Indian, Fine Dining, Pub, etc.
   hasWebsite       Boolean   @default(false)
   reservationSystem String?  // OpenTable, Resy, TheFork, SevenRooms, None
@@ -54,4 +57,5 @@ model RestaurantLead {
 
   @@index([status])
   @@index([region])
+  @@index([country])
 }
