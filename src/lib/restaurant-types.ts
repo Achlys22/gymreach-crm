@@ -15,6 +15,7 @@ export interface RestaurantLead {
   notes: string | null;
   detail: string | null;
   message: string | null;
+  emailMessage: string | null;
   followUpAt: string | null;
   contactedAt: string | null;
   createdAt: string;

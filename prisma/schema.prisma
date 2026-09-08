@@ -23,6 +23,7 @@ model GymLead {
   notes       String?
   detail      String?   // manually-researched specific detail for Line 1
   message     String?   // generated personalized cold DM
+  emailMessage String?  // generated personalized cold email
   followUpAt  DateTime?
   contactedAt DateTime?
   createdAt   DateTime  @default(now())
@@ -50,6 +51,7 @@ model RestaurantLead {
   notes            String?
   detail           String?   // manually-researched specific detail for Line 1
   message          String?   // generated pitch for reservation bot
+  emailMessage     String?   // generated email pitch
   followUpAt       DateTime?
   contactedAt      DateTime?
   createdAt        DateTime  @default(now())

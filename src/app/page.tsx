@@ -28,6 +28,7 @@ import {
   Check,
   Wand2,
   UtensilsCrossed,
+  Mail,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ export default function Home() {
   // workspace switcher
   const [workspace, setWorkspace] = useState<"gym" | "restaurant">("gym");
   const [restaurantBulkGen, setRestaurantBulkGen] = useState(false);
+  const [emailBulkGen, setEmailBulkGen] = useState(false);
 
   const [leads, setLeads] = useState<GymLead[]>([]);
   const [stats, setStats] = useState<LeadStats | null>(null);
@@ -110,6 +112,10 @@ export default function Home() {
   // message dialog
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageLead, setMessageLead] = useState<GymLead | null>(null);
+
+  // email dialog
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailLead, setEmailLead] = useState<GymLead | null>(null);
 
   // bulk generation
   const [bulkGenerating, setBulkGenerating] = useState(false);
@@ -232,6 +238,33 @@ export default function Home() {
       fetchStats();
     } catch {
       fetchLeads();
+    }
+  };
+
+  // Bulk-generate emails for leads that don't have one yet
+  const bulkGenerateEmails = async () => {
+    setEmailBulkGen(true);
+    try {
+      const res = await fetch("/api/leads/generate-emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast({
+        title: "Emails generated",
+        description: `${data.generated} created. Refreshing…`,
+      });
+      fetchLeads();
+    } catch (e) {
+      toast({
+        title: "Generation failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setEmailBulkGen(false);
     }
   };
 
@@ -448,6 +481,20 @@ export default function Home() {
               )}
               <span className="hidden sm:inline">Generate DMs</span>
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={bulkGenerateEmails}
+              disabled={emailBulkGen}
+              title="Generate personalized emails for leads missing one"
+            >
+              {emailBulkGen ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Mail className="size-4" />
+              )}
+              <span className="hidden sm:inline">Generate Emails</span>
+            </Button>
             <Button size="sm" onClick={() => { setEditing(null); setAddOpen(true); }}>
               <Plus className="size-4" />
               Add lead
@@ -645,6 +692,7 @@ export default function Home() {
                         onEdit={() => { setEditing(lead); setAddOpen(true); }}
                         onDelete={() => deleteLead(lead.id, lead.name)}
                         onMessage={() => { setMessageLead(lead); setMessageOpen(true); }}
+                        onEmail={() => { setEmailLead(lead); setEmailOpen(true); }}
                       />
                     ))}
                   </TableBody>
@@ -723,6 +771,16 @@ export default function Home() {
           setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
         }}
       />
+
+      {/* Email dialog */}
+      <EmailDialog
+        open={emailOpen}
+        onOpenChange={setEmailOpen}
+        lead={emailLead}
+        onUpdated={(updated) => {
+          setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        }}
+      />
       </>
       )}
     </div>
@@ -773,6 +831,7 @@ function LeadRow({
   onEdit: () => void;
   onDelete: () => void;
   onMessage: () => void;
+  onEmail: () => void;
 }) {
   const disciplines = lead.disciplines.split(",").map((d) => d.trim()).filter(Boolean);
   const statusBadge = STATUS_META[lead.status as LeadStatus] ?? STATUS_META.new;
@@ -863,17 +922,36 @@ function LeadRow({
             size="sm"
             className="h-8 gap-1.5 text-xs"
             onClick={onMessage}
-            title={lead.message ? "View message" : "Generate message"}
+            title={lead.message ? "View DM" : "Generate DM"}
           >
             {lead.message ? (
               <>
                 <MessageCircle className="size-3.5 text-emerald-500" />
-                <span className="hidden sm:inline text-emerald-600">Ready</span>
+                <span className="hidden sm:inline text-emerald-600">DM</span>
               </>
             ) : (
               <>
                 <Wand2 className="size-3.5" />
                 <span className="hidden sm:inline">DM</span>
+              </>
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={onEmail}
+            title={lead.emailMessage ? "View email" : "Generate email"}
+          >
+            {lead.emailMessage ? (
+              <>
+                <Mail className="size-3.5 text-sky-500" />
+                <span className="hidden sm:inline text-sky-600">Email</span>
+              </>
+            ) : (
+              <>
+                <Mail className="size-3.5" />
+                <span className="hidden sm:inline">Email</span>
               </>
             )}
           </Button>
@@ -1416,6 +1494,143 @@ function MessageDialog({
                     Generate DM
                   </>
                 )}
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------- Email dialog ---------- */
+function EmailDialog({
+  open,
+  onOpenChange,
+  lead,
+  onUpdated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  lead: GymLead | null;
+  onUpdated: (lead: GymLead) => void;
+}) {
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+  const [detail, setDetail] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (open && lead) {
+      setEmail(lead.emailMessage || "");
+      setDetail(lead.detail || "");
+      setCopied(false);
+    }
+  }, [open, lead]);
+
+  const generate = async (regenerate = false) => {
+    if (!lead) return;
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detail: detail || null, regenerate }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setEmail(data.email);
+      if (data.lead) onUpdated(data.lead);
+      toast({ title: "Email generated" });
+    } catch (e) {
+      toast({
+        title: "Generation failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyEmail = async () => {
+    if (!lead || !email) return;
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopied(true);
+      toast({ title: "Email copied to clipboard" });
+      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = email;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      toast({ title: "Email copied" });
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
+
+  if (!lead) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Mail className="size-4 text-sky-500" />
+            Email — {lead.name}
+          </DialogTitle>
+          <DialogDescription>
+            <a href={`https://instagram.com/${lead.instagram}`} target="_blank" rel="noopener noreferrer" className="hover:text-sky-600 inline-flex items-center gap-1">
+              @{lead.instagram}
+              <ExternalLink className="size-3" />
+            </a>
+            {" · "}
+            {lead.city ?? lead.region ?? "UK"}
+            {lead.country ? ` · ${lead.country}` : ""}
+            {" · "}
+            {lead.disciplines || "MMA"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3 py-2">
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium flex items-center gap-1.5">
+              <Sparkles className="size-3 text-amber-500" />
+              Specific detail for the email
+            </Label>
+            <Input value={detail} onChange={(e) => setDetail(e.target.value)} placeholder="e.g. their kids BJJ program, coach Brad, 2 boxing rings" className="text-sm" />
+          </div>
+
+          {email ? (
+            <>
+              <Textarea value={email} onChange={(e) => setEmail(e.target.value)} rows={12} className="resize-none text-sm leading-relaxed font-mono" />
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <Button variant="ghost" size="sm" onClick={() => generate(true)} disabled={generating} className="text-xs">
+                  {generating ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
+                  Regenerate
+                </Button>
+                <Button variant="ghost" size="sm" onClick={copyEmail} className="text-xs">
+                  {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                  {copied ? "Copied!" : "Copy Email"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center py-6 gap-3">
+              <div className="size-12 rounded-xl bg-gradient-to-br from-sky-500/15 to-cyan-500/15 flex items-center justify-center">
+                <Mail className="size-6 text-sky-500" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">No email generated yet</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">Generates a personalized cold email with subject line, hook, pain, offer, and close.</p>
+              </div>
+              <Button onClick={() => generate(false)} disabled={generating} className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white">
+                {generating ? (<><Loader2 className="size-4 animate-spin" />Generating...</>) : (<><Mail className="size-4" />Generate Email</>)}
               </Button>
             </div>
           )}
