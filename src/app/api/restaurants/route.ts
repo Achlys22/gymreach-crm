@@ -50,16 +50,16 @@ export async function GET(req: NextRequest) {
       const pa = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 1;
       const pb = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 1;
       if (pa !== pb) return pa - pb;
-      return b.createdAt.getTime() - a.createdAt.getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
     return NextResponse.json({
       leads: leads.map((l) => ({
         ...l,
-        followUpAt: l.followUpAt?.toISOString() ?? null,
-        contactedAt: l.contactedAt?.toISOString() ?? null,
-        createdAt: l.createdAt.toISOString(),
-        updatedAt: l.updatedAt.toISOString(),
+        followUpAt: l.followUpAt ? new Date(l.followUpAt).toISOString() : null,
+        contactedAt: l.contactedAt ? new Date(l.contactedAt).toISOString() : null,
+        createdAt: typeof l.createdAt === 'string' ? l.createdAt : l.createdAt.toISOString(),
+        updatedAt: typeof l.updatedAt === 'string' ? l.updatedAt : l.updatedAt.toISOString(),
       })),
     });
   } catch (e) {
