@@ -824,6 +824,7 @@ function LeadRow({
   onEdit,
   onDelete,
   onMessage,
+  onEmail,
 }: {
   lead: GymLead;
   onStatusChange: (s: string) => void;
