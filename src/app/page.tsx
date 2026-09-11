@@ -29,6 +29,8 @@ import {
   Wand2,
   UtensilsCrossed,
   Mail,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -83,9 +85,11 @@ import {
 } from "@/lib/constants";
 import type { GymLead, LeadStats } from "@/lib/types";
 import RestaurantWorkspace from "@/components/restaurant-workspace";
+import { useTheme } from "next-themes";
 
 export default function Home() {
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   // workspace switcher
   const [workspace, setWorkspace] = useState<"gym" | "restaurant">("gym");
@@ -424,8 +428,18 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Workspace switcher */}
+          {/* Workspace switcher + Dark mode toggle */}
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              title="Toggle dark mode"
+            >
+              <Sun className="size-4 dark:hidden" />
+              <Moon className="size-4 hidden dark:block" />
+            </Button>
             <div className="flex items-center rounded-lg border bg-slate-50 dark:bg-slate-900 p-0.5">
               <button
                 onClick={() => setWorkspace("gym")}
